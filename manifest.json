@@ -1,0 +1,15 @@
+{
+  "short_name": "ENOT SPACE",
+  "name": "ENOT SPACE — управление производством",
+  "icons": [
+    { "src": "icons/icon-192.png", "type": "image/png", "sizes": "192x192", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "any maskable" }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#080f18",
+  "background_color": "#080f18",
+  "orientation": "portrait-primary",
+  "lang": "ru",
+  "description": "Система управления производством"
+}

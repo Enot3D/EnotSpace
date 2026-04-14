@@ -1,0 +1,13 @@
+{
+  "files": {
+    "main.css": "/EnotSpace/static/css/main.c0661091.css",
+    "main.js": "/EnotSpace/static/js/main.19b03d91.js",
+    "index.html": "/EnotSpace/index.html",
+    "main.c0661091.css.map": "/EnotSpace/static/css/main.c0661091.css.map",
+    "main.19b03d91.js.map": "/EnotSpace/static/js/main.19b03d91.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.c0661091.css",
+    "static/js/main.19b03d91.js"
+  ]
+}
