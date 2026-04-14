@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './index.css';
 import { useStore } from './data/store';
+import { onAuthChange, getUserData } from './firebase/auth';
 import StatusBar from './components/StatusBar';
 import BottomNav from './components/BottomNav';
 import Dashboard from './pages/Dashboard';
@@ -13,22 +14,55 @@ import Goals from './pages/Goals';
 import StoneMode from './pages/StoneMode';
 import More from './pages/More';
 import Reminders from './pages/Reminders';
+import LoginPage from './pages/LoginPage';
 
 const PAGES = ['dashboard','orders','warehouse','finance','printers','clients','goals','stone','more'];
 
 export const StoreContext = React.createContext(null);
 export const NavContext = React.createContext(null);
+export const AuthContext = React.createContext(null);
 
 export default function App() {
-  const store = useStore();
+  const [user, setUser] = useState(null);
+  const [userData, setUserData] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [devMode, setDevMode] = useState(false);
   const [page, setPage] = useState('dashboard');
   const [subPage, setSubPage] = useState(null);
+
+  // Организация (пока хардкод, можно расширить для мультитенантности)
+  const orgId = 'default_org';
+
+  const store = useStore(user || (devMode ? { uid: 'dev' } : null), orgId);
 
   // Register SW
   useEffect(() => {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(() => {});
     }
+  }, []);
+
+  // Auth listener
+  useEffect(() => {
+    const unsubscribe = onAuthChange(async (firebaseUser) => {
+      if (firebaseUser) {
+        setUser(firebaseUser);
+        const result = await getUserData(firebaseUser.uid);
+        if (result.success) {
+          setUserData(result.data);
+        } else {
+          // Если нет данных пользователя в Firestore, создаём базовую запись
+          console.warn('User data not found in Firestore, user may need to be set up properly');
+          setUserData({ email: firebaseUser.email, role: 'admin', displayName: firebaseUser.email });
+        }
+      } else {
+        setUser(null);
+        setUserData(null);
+      }
+      setAuthLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const nav = { page, setPage, subPage, setSubPage, go: (p, sub) => { setPage(p); setSubPage(sub || null); } };
@@ -49,24 +83,51 @@ export default function App() {
     }
   };
 
-  return (
-    <StoreContext.Provider value={store}>
-      <NavContext.Provider value={nav}>
-        <div style={{ display:'flex', flexDirection:'column', minHeight:'100dvh', background:'var(--bg0)' }}>
-          {/* Top status bar */}
-          <StatusBar />
-
-          {/* Main content */}
-          <main style={{ flex: 1, overflowY:'auto', overflowX:'hidden', paddingBottom: 'calc(var(--nav-h) + var(--safe-bottom) + 8px)' }}>
-            <div className="animate-fade" key={page}>
-              {renderPage()}
-            </div>
-          </main>
-
-          {/* Bottom navigation */}
-          <BottomNav />
+  // Показываем загрузку пока проверяем авторизацию
+  if (authLoading) {
+    return (
+      <div style={{
+        minHeight: '100dvh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'var(--bg0)',
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>⬡</div>
+          <div style={{ color: 'var(--text-dim)' }}>Загрузка...</div>
         </div>
-      </NavContext.Provider>
-    </StoreContext.Provider>
+      </div>
+    );
+  }
+
+  // Если не авторизован — показываем экран входа
+  if (!user && !devMode) {
+    return <LoginPage onLoginSuccess={() => {}} onSkipAuth={() => setDevMode(true)} />;
+  }
+
+  const authContextValue = { user, userData: userData || { email: 'dev@local', role: 'admin', displayName: 'Dev Mode' } };
+
+  return (
+    <AuthContext.Provider value={authContextValue}>
+      <StoreContext.Provider value={store}>
+        <NavContext.Provider value={nav}>
+          <div style={{ display:'flex', flexDirection:'column', minHeight:'100dvh', background:'var(--bg0)' }}>
+            {/* Top status bar */}
+            <StatusBar />
+
+            {/* Main content */}
+            <main style={{ flex: 1, overflowY:'auto', overflowX:'hidden', paddingBottom: 'calc(var(--nav-h) + var(--safe-bottom) + 8px)' }}>
+              <div className="animate-fade" key={page}>
+                {renderPage()}
+              </div>
+            </main>
+
+            {/* Bottom navigation */}
+            <BottomNav />
+          </div>
+        </NavContext.Provider>
+      </StoreContext.Provider>
+    </AuthContext.Provider>
   );
 }

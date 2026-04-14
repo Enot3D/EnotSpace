@@ -110,9 +110,10 @@ export default function Dashboard() {
           {activeOrders.length === 0 && <div className="empty"><div className="empty-text">Нет активных заказов</div></div>}
           {activeOrders.map(order => {
             const dl = deadlineLabel(order.deadline);
+            const nextStatus = order.status === 'new' ? 'in_progress' : 'done';
+            const nextLabel = order.status === 'new' ? 'В работу' : 'Готов';
             return (
-              <div key={order.id} className="card card-hover" style={{ padding:'12px 14px' }}
-                onClick={() => nav.setPage('orders')}>
+              <div key={order.id} className="card" style={{ padding:'12px 14px' }}>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ fontSize:13, fontWeight:500, color:'var(--text0)', marginBottom:3, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{order.title}</div>
@@ -126,7 +127,29 @@ export default function Dashboard() {
                 <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:8 }}>
                   <span className="dot" style={{ background:STATUS_COLORS[order.status] }} />
                   <span style={{ fontSize:11, color:STATUS_COLORS[order.status] }}>{STATUS_LABELS[order.status]}</span>
-                  {order.priority === 'high' && <span className="badge badge-red" style={{ marginLeft:'auto' }}>Срочно</span>}
+                  {order.priority === 'high' && <span className="badge badge-red">Срочно</span>}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      store.updateItem('orders', order.id, { status: nextStatus });
+                    }}
+                    style={{
+                      marginLeft: 'auto',
+                      padding: '4px 10px',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      background: STATUS_COLORS[nextStatus],
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      transition: 'opacity 0.2s',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
+                    onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                  >
+                    {nextLabel}
+                  </button>
                 </div>
               </div>
             );

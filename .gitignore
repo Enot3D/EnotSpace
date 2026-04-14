@@ -3,3 +3,8 @@ build/
 .DS_Store
 *.local
 .env
+.env.local
+.env.production.local
+
+# Firebase config с реальными ключами
+src/firebase/config.js

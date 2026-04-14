@@ -86,16 +86,27 @@ function CostBreakdown({ calc, margin }) {
 }
 
 // ── Order card ──────────────────────────────────────────────────────────
-function OrderCard({ order, onClick }) {
+function OrderCard({ order, onClick, store }) {
   const dl      = new Date(order.deadline)-Date.now();
   const dlText  = dl<0?'просрочен':dl<86400000?'сегодня':Math.floor(dl/86400000)+'д';
   const dlColor = dl<0?'var(--red)':dl<86400000?'var(--amber)':'var(--text3)';
   const sc = { new:'var(--cyan)', in_progress:'var(--amber)', done:'var(--green)', issued:'var(--text2)' };
   const sl = STATUS_COLS.find(c=>c.id===order.status)?.label||order.status;
+
+  // Определяем следующий статус
+  const getNextStatus = () => {
+    if (order.status === 'new') return { status: 'in_progress', label: 'В работу', color: 'var(--amber)' };
+    if (order.status === 'in_progress') return { status: 'done', label: 'Готов', color: 'var(--green)' };
+    if (order.status === 'done') return { status: 'issued', label: 'Выдать', color: 'var(--text2)' };
+    return null;
+  };
+
+  const nextStatus = getNextStatus();
+
   return (
-    <div className="card card-hover" style={{ marginBottom:8, padding:'12px 14px' }} onClick={onClick}>
+    <div className="card" style={{ marginBottom:8, padding:'12px 14px' }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:6 }}>
-        <div style={{ flex:1, minWidth:0 }}>
+        <div style={{ flex:1, minWidth:0, cursor:'pointer' }} onClick={onClick}>
           <div style={{ fontSize:13, fontWeight:500, color:'var(--text0)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{order.title}</div>
           <div style={{ fontSize:11, color:'var(--text2)', marginTop:2 }}>{order.client}</div>
         </div>
@@ -112,6 +123,30 @@ function OrderCard({ order, onClick }) {
         {order.paid
           ? <span style={{ fontSize:10, color:'var(--green)', marginLeft:'auto' }}>✓ оплачен</span>
           : order.status!=='new' && <span style={{ fontSize:10, color:'var(--red)', marginLeft:'auto' }}>не оплачен</span>}
+        {nextStatus && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              store.updateItem('orders', order.id, { status: nextStatus.status });
+            }}
+            style={{
+              padding: '4px 10px',
+              fontSize: '11px',
+              fontWeight: 600,
+              background: nextStatus.color,
+              color: '#fff',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              transition: 'opacity 0.2s',
+              marginLeft: order.paid || order.status === 'new' ? 'auto' : '4px',
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
+            onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+          >
+            {nextStatus.label}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -441,7 +476,7 @@ export default function Orders() {
         <div className="empty"><div className="empty-icon">📋</div><div className="empty-text">Нет заказов</div><div className="empty-sub">Нажми «+ Новый»</div></div>
       )}
       {orders.map(order=>(
-        <OrderCard key={order.id} order={order} onClick={()=>setModal(order)}/>
+        <OrderCard key={order.id} order={order} onClick={()=>setModal(order)} store={store}/>
       ))}
       {modal!==null && <OrderModal order={modal} onClose={()=>setModal(null)} store={store}/>}
     </div>

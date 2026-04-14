@@ -1,4 +1,5 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { subscribeToOrgData, saveOrgData } from '../firebase/firestore';
 
 const STORAGE_KEY = 'enotspace_data_v2';
 
@@ -51,16 +52,56 @@ function saveData(data) {
   catch (e) { console.error('Save failed', e); }
 }
 
-export function useStore() {
+export function useStore(user, orgId) {
   const [data, setData] = useState(loadData);
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState(null);
+
+  // Подписка на изменения в Firestore (реалтайм синхронизация)
+  useEffect(() => {
+    if (!user || !orgId) return;
+
+    setSyncing(true);
+    const unsubscribe = subscribeToOrgData(orgId, (result) => {
+      setSyncing(false);
+      if (result.success && result.data) {
+        setData(prev => {
+          const merged = {
+            ...defaultData,
+            ...result.data,
+            settings: { ...defaultData.settings, ...(result.data.settings || {}) },
+          };
+          // Сохраняем в localStorage как кэш
+          saveData(merged);
+          return merged;
+        });
+        setSyncError(null);
+      } else {
+        setSyncError(result.error);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [user, orgId]);
 
   const update = useCallback((updater) => {
     setData(prev => {
       const next = typeof updater === 'function' ? updater(prev) : { ...prev, ...updater };
+
+      // Сохраняем локально
       saveData(next);
+
+      // Сохраняем в Firestore если есть пользователь
+      if (user && orgId) {
+        saveOrgData(orgId, next).catch(err => {
+          console.error('Firestore save failed:', err);
+          setSyncError(err.message);
+        });
+      }
+
       return next;
     });
-  }, []);
+  }, [user, orgId]);
 
   const addItem = useCallback((key, item) =>
     update(prev => ({ ...prev, [key]: [...(prev[key]||[]), item] })), [update]);
@@ -146,7 +187,18 @@ export function useStore() {
         alerts.push({ type:'info', icon:'🔔', text:`Через ${Math.floor(diff/86400000)}д: ${r.title}`, action:'dashboard' });
     });
     return alerts;
-  }, [data.materials, data.printers, data.orders]);
+  }, [data.materials, data.printers, data.orders, data.reminders]);
 
-  return { data, update, addItem, updateItem, deleteItem, deleteOrder, getFinanceStats, getAlerts };
+  return {
+    data,
+    update,
+    addItem,
+    updateItem,
+    deleteItem,
+    deleteOrder,
+    getFinanceStats,
+    getAlerts,
+    syncing,
+    syncError,
+  };
 }

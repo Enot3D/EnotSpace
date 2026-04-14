@@ -1,5 +1,5 @@
 import React, { useContext } from 'react';
-import { StoreContext, NavContext } from '../App';
+import { StoreContext, NavContext, AuthContext } from '../App';
 
 function fmt(n) {
   if (n >= 1000000) return (n/1000000).toFixed(1) + 'М';
@@ -10,6 +10,7 @@ function fmt(n) {
 export default function StatusBar() {
   const store = useContext(StoreContext);
   const nav = useContext(NavContext);
+  const auth = useContext(AuthContext);
   const s = store.getFinanceStats();
   const alerts = store.getAlerts();
 
@@ -28,7 +29,24 @@ export default function StatusBar() {
               <polygon points="8,5 12,12 4,12" fill="rgba(255,255,255,0.3)"/>
             </svg>
           </div>
-          <span style={{ fontFamily:'var(--font-display)', fontWeight:700, fontSize:15, color:'var(--text0)', letterSpacing:'-0.3px' }}>ENOT SPACE</span>
+          <div>
+            <span style={{ fontFamily:'var(--font-display)', fontWeight:700, fontSize:15, color:'var(--text0)', letterSpacing:'-0.3px' }}>ENOT SPACE</span>
+            {auth?.userData && (
+              <div style={{ fontSize:9, color:'var(--text3)', marginTop:1 }}>
+                {auth.userData.displayName || auth.user.email}
+                {store.syncing && <span style={{ marginLeft:4, color:'var(--cyan)' }}>● синхр...</span>}
+                {store.syncError && (
+                  <span
+                    style={{ marginLeft:4, color:'var(--red)', cursor:'pointer' }}
+                    title={store.syncError}
+                    onClick={() => console.error('Sync error:', store.syncError)}
+                  >
+                    ● ошибка (клик для деталей)
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
           {alerts.length > 0 && (

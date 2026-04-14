@@ -1,6 +1,8 @@
 import React, { useState, useContext } from 'react';
-import { StoreContext, NavContext } from '../App';
+import { StoreContext, NavContext, AuthContext } from '../App';
 import { v4 as uuid } from 'uuid';
+import { signOut, ROLES } from '../firebase/auth';
+import UserManagement from './UserManagement';
 
 function fmt(n) { return new Intl.NumberFormat('ru-RU').format(Math.round(n)); }
 
@@ -560,7 +562,9 @@ export function StoneMode() {
 export function More() {
   const store = useContext(StoreContext);
   const nav = useContext(NavContext);
+  const auth = useContext(AuthContext);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [showUserManagement, setShowUserManagement] = useState(false);
   const { settings } = store.data;
   const [s, setS] = useState(settings);
 
@@ -569,12 +573,24 @@ export function More() {
     setSettingsOpen(false);
   };
 
+  const handleLogout = async () => {
+    if (window.confirm('Выйти из системы?')) {
+      await signOut();
+    }
+  };
+
+  const isAdmin = auth?.userData?.role === ROLES.ADMIN;
+
   const MENU_ITEMS = [
     { icon:'🖨', label:'Принтеры', page:'printers' },
     { icon:'👤', label:'Клиенты', page:'clients' },
     { icon:'🎯', label:'Цели', page:'goals' },
     { icon:'🪨', label:'Режим камня', page:'stone' },
   ];
+
+  if (showUserManagement) {
+    return <UserManagement />;
+  }
 
   return (
     <div style={{padding:'16px'}}>
@@ -594,6 +610,18 @@ export function More() {
         <div className="list-item" style={{padding:'14px',cursor:'pointer'}} onClick={()=>setSettingsOpen(true)}>
           <span style={{fontSize:18}}>⚙️</span>
           <span style={{fontSize:13,color:'var(--text0)',flex:1}}>Настройки</span>
+          <span style={{color:'var(--text3)'}}>›</span>
+        </div>
+        {isAdmin && (
+          <div className="list-item" style={{padding:'14px',cursor:'pointer',borderTop:'1px solid var(--border)'}} onClick={()=>setShowUserManagement(true)}>
+            <span style={{fontSize:18}}>👥</span>
+            <span style={{fontSize:13,color:'var(--text0)',flex:1}}>Управление пользователями</span>
+            <span style={{color:'var(--text3)'}}>›</span>
+          </div>
+        )}
+        <div className="list-item" style={{padding:'14px',cursor:'pointer',borderTop:'1px solid var(--border)'}} onClick={handleLogout}>
+          <span style={{fontSize:18}}>🚪</span>
+          <span style={{fontSize:13,color:'var(--red)',flex:1}}>Выйти</span>
           <span style={{color:'var(--text3)'}}>›</span>
         </div>
       </div>
