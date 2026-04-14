@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './index.css';
 import { useStore } from './data/store';
-import { onAuthChange, getUserData } from './firebase/auth';
+import { onAuthChange, getUserData, getRolePermissions } from './firebase/auth';
 import StatusBar from './components/StatusBar';
 import BottomNav from './components/BottomNav';
 import Dashboard from './pages/Dashboard';
@@ -50,6 +50,10 @@ export default function App() {
         const result = await getUserData(firebaseUser.uid);
         if (result.success) {
           setUserData(result.data);
+          // Предзагрузка прав роли в кэш
+          if (result.data.role) {
+            await getRolePermissions(result.data.role);
+          }
         } else {
           // Если нет данных пользователя в Firestore, создаём базовую запись
           console.warn('User data not found in Firestore, user may need to be set up properly');

@@ -1,5 +1,6 @@
 import React, { useContext } from 'react';
-import { NavContext } from '../App';
+import { NavContext, AuthContext } from '../App';
+import { hasSectionAccessSync } from '../firebase/auth';
 
 const NAV_ITEMS = [
   { id:'dashboard',  icon:'⬡',  label:'Главная' },
@@ -11,16 +12,23 @@ const NAV_ITEMS = [
 
 export default function BottomNav() {
   const { page, setPage } = useContext(NavContext);
+  const auth = useContext(AuthContext);
+
+  // Фильтруем разделы по правам доступа
+  const visibleItems = NAV_ITEMS.filter(item => {
+    if (!auth?.userData?.role) return true;
+    return hasSectionAccessSync(auth.userData.role, item.id);
+  });
 
   return (
     <nav style={{
       position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 100,
       background: 'var(--bg1)', borderTop: '1px solid var(--border)',
-      display: 'grid', gridTemplateColumns: 'repeat(5,1fr)',
+      display: 'grid', gridTemplateColumns: `repeat(${visibleItems.length},1fr)`,
       paddingBottom: 'var(--safe-bottom)',
       height: 'calc(var(--nav-h) + var(--safe-bottom))',
     }}>
-      {NAV_ITEMS.map(item => {
+      {visibleItems.map(item => {
         const active = page === item.id;
         return (
           <button key={item.id} onClick={() => setPage(item.id)}

@@ -1,12 +1,14 @@
 import React, { useState, useContext } from 'react';
 import { StoreContext } from '../App';
 import { createUser, ROLES } from '../firebase/auth';
-import { getAllUsers, deactivateUser } from '../firebase/firestore';
+import { getAllUsers, deactivateUser, updateUser, getAllRoles } from '../firebase/firestore';
 
 export default function UserManagement() {
   const store = useContext(StoreContext);
   const [users, setUsers] = useState([]);
+  const [roles, setRoles] = useState([]);
   const [showForm, setShowForm] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -20,6 +22,7 @@ export default function UserManagement() {
 
   React.useEffect(() => {
     loadUsers();
+    loadRoles();
   }, []);
 
   const loadUsers = async () => {
@@ -29,29 +32,65 @@ export default function UserManagement() {
     }
   };
 
+  const loadRoles = async () => {
+    const result = await getAllRoles();
+    if (result.success) {
+      setRoles(result.roles);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
     setLoading(true);
 
-    const result = await createUser(
-      formData.email,
-      formData.password,
-      formData.role,
-      formData.displayName
-    );
+    let result;
+    if (editingUser) {
+      // Редактирование существующего пользователя
+      const updateData = {
+        displayName: formData.displayName,
+        role: formData.role,
+      };
+      result = await updateUser(editingUser.id, updateData);
+    } else {
+      // Создание нового пользователя
+      result = await createUser(
+        formData.email,
+        formData.password,
+        formData.role,
+        formData.displayName
+      );
+    }
 
     setLoading(false);
 
     if (result.success) {
-      setSuccess(`Пользователь ${formData.email} создан!`);
+      setSuccess(editingUser ? 'Пользователь обновлён!' : `Пользователь ${formData.email} создан!`);
       setFormData({ email: '', password: '', displayName: '', role: ROLES.MANAGER });
       setShowForm(false);
+      setEditingUser(null);
       loadUsers();
     } else {
       setError(result.error);
     }
+  };
+
+  const handleEdit = (user) => {
+    setEditingUser(user);
+    setFormData({
+      email: user.email,
+      password: '',
+      displayName: user.displayName || '',
+      role: user.role || ROLES.MANAGER,
+    });
+    setShowForm(true);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingUser(null);
+    setFormData({ email: '', password: '', displayName: '', role: ROLES.MANAGER });
+    setShowForm(false);
   };
 
   const handleDeactivate = async (uid) => {
@@ -72,11 +111,18 @@ export default function UserManagement() {
     [ROLES.OPERATOR]: '🖨 Оператор',
   };
 
+  // Получить название роли (встроенная или кастомная)
+  const getRoleName = (roleId) => {
+    if (roleLabels[roleId]) return roleLabels[roleId];
+    const customRole = roles.find(r => r.id === roleId);
+    return customRole ? customRole.name : roleId;
+  };
+
   return (
     <div className="page">
       <div className="page-header">
         <h1>👥 Управление пользователями</h1>
-        <button className="btn-primary" onClick={() => setShowForm(!showForm)}>
+        <button className="btn-primary" onClick={() => { setEditingUser(null); setShowForm(!showForm); }}>
           {showForm ? 'Отмена' : '+ Добавить'}
         </button>
       </div>
@@ -86,7 +132,7 @@ export default function UserManagement() {
 
       {showForm && (
         <div className="card" style={{ marginBottom: '16px' }}>
-          <h3 style={{ marginTop: 0 }}>Новый пользователь</h3>
+          <h3 style={{ marginTop: 0 }}>{editingUser ? 'Редактировать пользователя' : 'Новый пользователь'}</h3>
           <form onSubmit={handleSubmit}>
             <div style={{ marginBottom: '12px' }}>
               <label className="label">Email</label>
@@ -96,7 +142,13 @@ export default function UserManagement() {
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 required
+                disabled={editingUser}
               />
+              {editingUser && (
+                <div style={{ fontSize: '11px', color: 'var(--text3)', marginTop: '4px' }}>
+                  Email нельзя изменить
+                </div>
+              )}
             </div>
 
             <div style={{ marginBottom: '12px' }}>
@@ -110,17 +162,19 @@ export default function UserManagement() {
               />
             </div>
 
-            <div style={{ marginBottom: '12px' }}>
-              <label className="label">Пароль</label>
-              <input
-                type="password"
-                className="input"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                required
-                minLength={6}
-              />
-            </div>
+            {!editingUser && (
+              <div style={{ marginBottom: '12px' }}>
+                <label className="label">Пароль</label>
+                <input
+                  type="password"
+                  className="input"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  required
+                  minLength={6}
+                />
+              </div>
+            )}
 
             <div style={{ marginBottom: '16px' }}>
               <label className="label">Роль</label>
@@ -129,15 +183,29 @@ export default function UserManagement() {
                 value={formData.role}
                 onChange={(e) => setFormData({ ...formData, role: e.target.value })}
               >
-                <option value={ROLES.MANAGER}>📋 Менеджер</option>
-                <option value={ROLES.OPERATOR}>🖨 Оператор принтера</option>
-                <option value={ROLES.OWNER_ASSISTANT}>🤝 Помощник владельца</option>
+                <optgroup label="Встроенные роли">
+                  <option value={ROLES.MANAGER}>📋 Менеджер</option>
+                  <option value={ROLES.OPERATOR}>🖨 Оператор принтера</option>
+                  <option value={ROLES.OWNER_ASSISTANT}>🤝 Помощник владельца</option>
+                </optgroup>
+                {roles.filter(r => !r.isSystem).length > 0 && (
+                  <optgroup label="Кастомные роли">
+                    {roles.filter(r => !r.isSystem).map(role => (
+                      <option key={role.id} value={role.id}>{role.name}</option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
             </div>
 
-            <button type="submit" className="btn-primary" disabled={loading}>
-              {loading ? 'Создание...' : 'Создать'}
-            </button>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button type="submit" className="btn-primary" style={{ flex: 1 }} disabled={loading}>
+                {loading ? (editingUser ? 'Сохранение...' : 'Создание...') : (editingUser ? 'Сохранить' : 'Создать')}
+              </button>
+              <button type="button" className="btn" onClick={handleCancelEdit}>
+                Отмена
+              </button>
+            </div>
           </form>
         </div>
       )}
@@ -165,20 +233,29 @@ export default function UserManagement() {
                     {user.displayName || user.email}
                   </div>
                   <div style={{ fontSize: '13px', color: 'var(--text-dim)', marginTop: '2px' }}>
-                    {user.email} • {roleLabels[user.role]}
+                    {user.email} • {getRoleName(user.role)}
                   </div>
                   {!user.active && (
                     <span style={{ fontSize: '12px', color: '#999' }}>Деактивирован</span>
                   )}
                 </div>
                 {user.active && user.role !== ROLES.ADMIN && (
-                  <button
-                    className="btn-secondary"
-                    onClick={() => handleDeactivate(user.id)}
-                    style={{ fontSize: '12px', padding: '6px 12px' }}
-                  >
-                    Деактивировать
-                  </button>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      className="btn-secondary"
+                      onClick={() => handleEdit(user)}
+                      style={{ fontSize: '12px', padding: '6px 12px' }}
+                    >
+                      Редактировать
+                    </button>
+                    <button
+                      className="btn-secondary"
+                      onClick={() => handleDeactivate(user.id)}
+                      style={{ fontSize: '12px', padding: '6px 12px' }}
+                    >
+                      Деактивировать
+                    </button>
+                  </div>
                 )}
               </div>
             ))}

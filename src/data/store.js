@@ -52,6 +52,24 @@ function saveData(data) {
   catch (e) { console.error('Save failed', e); }
 }
 
+// Очистка данных от пустых/невалидных элементов
+function cleanData(data) {
+  const cleaned = { ...data };
+
+  // Очищаем массивы от пустых элементов
+  const arrayKeys = ['orders', 'clients', 'printers', 'materials', 'products', 'purchases', 'goals', 'notes', 'transactions', 'printSchedule', 'reminders'];
+
+  arrayKeys.forEach(key => {
+    if (Array.isArray(cleaned[key])) {
+      cleaned[key] = cleaned[key].filter(item =>
+        item && typeof item === 'object' && Object.keys(item).length > 0 && item.id
+      );
+    }
+  });
+
+  return cleaned;
+}
+
 export function useStore(user, orgId) {
   const [data, setData] = useState(loadData);
   const [syncing, setSyncing] = useState(false);
@@ -71,9 +89,11 @@ export function useStore(user, orgId) {
             ...result.data,
             settings: { ...defaultData.settings, ...(result.data.settings || {}) },
           };
+          // Очищаем от пустых элементов
+          const cleaned = cleanData(merged);
           // Сохраняем в localStorage как кэш
-          saveData(merged);
-          return merged;
+          saveData(cleaned);
+          return cleaned;
         });
         setSyncError(null);
       } else {
@@ -88,18 +108,21 @@ export function useStore(user, orgId) {
     setData(prev => {
       const next = typeof updater === 'function' ? updater(prev) : { ...prev, ...updater };
 
+      // Очищаем от пустых элементов
+      const cleaned = cleanData(next);
+
       // Сохраняем локально
-      saveData(next);
+      saveData(cleaned);
 
       // Сохраняем в Firestore если есть пользователь
       if (user && orgId) {
-        saveOrgData(orgId, next).catch(err => {
+        saveOrgData(orgId, cleaned).catch(err => {
           console.error('Firestore save failed:', err);
           setSyncError(err.message);
         });
       }
 
-      return next;
+      return cleaned;
     });
   }, [user, orgId]);
 

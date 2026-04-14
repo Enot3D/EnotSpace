@@ -1,8 +1,9 @@
 import React, { useState, useContext } from 'react';
 import { StoreContext, NavContext, AuthContext } from '../App';
 import { v4 as uuid } from 'uuid';
-import { signOut, ROLES } from '../firebase/auth';
+import { signOut, ROLES, hasPermissionSync } from '../firebase/auth';
 import UserManagement from './UserManagement';
+import RoleManagement from './RoleManagement';
 
 function fmt(n) { return new Intl.NumberFormat('ru-RU').format(Math.round(n)); }
 
@@ -565,6 +566,7 @@ export function More() {
   const auth = useContext(AuthContext);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showUserManagement, setShowUserManagement] = useState(false);
+  const [showRoleManagement, setShowRoleManagement] = useState(false);
   const { settings } = store.data;
   const [s, setS] = useState(settings);
 
@@ -580,6 +582,8 @@ export function More() {
   };
 
   const isAdmin = auth?.userData?.role === ROLES.ADMIN;
+  const canManageUsers = hasPermissionSync(auth?.userData?.role, 'canManageUsers');
+  const canManageRoles = hasPermissionSync(auth?.userData?.role, 'canManageRoles');
 
   const MENU_ITEMS = [
     { icon:'🖨', label:'Принтеры', page:'printers' },
@@ -590,6 +594,10 @@ export function More() {
 
   if (showUserManagement) {
     return <UserManagement />;
+  }
+
+  if (showRoleManagement) {
+    return <RoleManagement />;
   }
 
   return (
@@ -612,10 +620,17 @@ export function More() {
           <span style={{fontSize:13,color:'var(--text0)',flex:1}}>Настройки</span>
           <span style={{color:'var(--text3)'}}>›</span>
         </div>
-        {isAdmin && (
+        {canManageUsers && (
           <div className="list-item" style={{padding:'14px',cursor:'pointer',borderTop:'1px solid var(--border)'}} onClick={()=>setShowUserManagement(true)}>
             <span style={{fontSize:18}}>👥</span>
             <span style={{fontSize:13,color:'var(--text0)',flex:1}}>Управление пользователями</span>
+            <span style={{color:'var(--text3)'}}>›</span>
+          </div>
+        )}
+        {canManageRoles && (
+          <div className="list-item" style={{padding:'14px',cursor:'pointer',borderTop:'1px solid var(--border)'}} onClick={()=>setShowRoleManagement(true)}>
+            <span style={{fontSize:18}}>🎭</span>
+            <span style={{fontSize:13,color:'var(--text0)',flex:1}}>Управление ролями</span>
             <span style={{color:'var(--text3)'}}>›</span>
           </div>
         )}
