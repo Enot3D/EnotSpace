@@ -5,6 +5,3 @@ build/
 .env
 .env.local
 .env.production.local
-
-# Firebase config с реальными ключами
-src/firebase/config.js
