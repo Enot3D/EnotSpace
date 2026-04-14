@@ -17,7 +17,7 @@
     "predeploy": "npm run build",
     "deploy": "gh-pages -d build"
   },
-  "homepage": "https://Enot3D.github.io/PrintBoss",
+  "homepage": "https://Enot3D.github.io/EnotSpace",
   "eslintConfig": {
     "extends": [
       "react-app"
