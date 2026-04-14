@@ -19,6 +19,25 @@ function FocusTab({ store }) {
   const currentTask  = activeOrders.find(o => o.status === 'in_progress') || activeOrders[0];
   const printer      = currentTask ? (store.data.printers||[]).find(p => p.id === currentTask.printerId) : null;
 
+  // Получаем подзадачи текущего проекта
+  const subtasks = currentTask ? ((store.data.subtasks||{})[currentTask.id] || []) : [];
+  const activeTasks = subtasks.filter(t => !t.done);
+  const currentSubtask = activeTasks[0]; // Первая невыполненная задача
+  const doneCnt = subtasks.filter(t => t.done).length;
+  const pct = subtasks.length > 0 ? Math.round((doneCnt/subtasks.length)*100) : 0;
+
+  const completeCurrentSubtask = () => {
+    if (!currentTask || !currentSubtask) return;
+    const prev = (store.data.subtasks||{})[currentTask.id] || [];
+    store.update(d => ({
+      ...d,
+      subtasks: {
+        ...(d.subtasks||{}),
+        [currentTask.id]: prev.map(t => t.id===currentSubtask.id ? {...t, done:true} : t)
+      }
+    }));
+  };
+
   const saveNote = () => {
     if (!noteText.trim()) return;
     const lines = noteText.split('\n');
@@ -52,28 +71,80 @@ function FocusTab({ store }) {
 
             <div style={{background:'var(--bg3)',borderRadius:10,padding:'12px 14px',marginBottom:14,textAlign:'left'}}>
               <div style={{fontSize:10,color:'var(--text2)',textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:6}}>
-                Текущая задача
+                Проект
               </div>
               <div style={{fontSize:15,fontWeight:600,color:'var(--text0)',marginBottom:3}}>{currentTask.title}</div>
               <div style={{fontSize:11,color:'var(--text2)',marginBottom:8}}>
-                Проект: {currentTask.client}
+                {currentTask.client}
                 {printer && <> · 🖨 {printer.name}</>}
-              </div>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'var(--text2)',marginBottom:6}}>
-                <span>Прогресс</span>
+                {' · '}
                 <DeadlineBadge deadline={currentTask.deadline}/>
               </div>
-              <div className="progress" style={{height:6}}>
-                <div className="progress-fill" style={{width:'35%',background:'var(--cyan)'}}/>
-              </div>
+              {subtasks.length > 0 && (
+                <>
+                  <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'var(--text2)',marginBottom:6}}>
+                    <span>Прогресс: {doneCnt} из {subtasks.length}</span>
+                    <span style={{color:'var(--cyan)',fontWeight:600}}>{pct}%</span>
+                  </div>
+                  <div className="progress" style={{height:6}}>
+                    <div className="progress-fill" style={{width:pct+'%',background:pct===100?'var(--green)':'var(--cyan)'}}/>
+                  </div>
+                </>
+              )}
             </div>
 
-            <button
-              className="btn btn-primary"
-              style={{width:'100%',justifyContent:'center',fontSize:14,padding:'12px'}}
-              onClick={() => store.updateItem('orders', currentTask.id, {status:'done'})}>
-              ✓ Завершить выполнение задачи
-            </button>
+            {/* Текущая подзадача */}
+            {currentSubtask ? (
+              <div style={{marginBottom:14}}>
+                <div style={{fontSize:11,color:'var(--cyan)',textTransform:'uppercase',letterSpacing:'0.07em',marginBottom:8,fontWeight:600}}>
+                  Текущая задача
+                </div>
+                <div className="card" style={{padding:'16px',borderColor:'rgba(34,208,228,0.3)',textAlign:'center'}}>
+                  <div style={{fontSize:16,fontWeight:600,color:'var(--text0)',marginBottom:16}}>
+                    {currentSubtask.title}
+                  </div>
+                  <button
+                    className="btn btn-primary"
+                    style={{width:'100%',justifyContent:'center',fontSize:14,padding:'12px'}}
+                    onClick={completeCurrentSubtask}>
+                    ✓ Выполнить задачу
+                  </button>
+                </div>
+              </div>
+            ) : subtasks.length > 0 ? (
+              <div style={{marginBottom:14}}>
+                <div className="card" style={{padding:'20px',textAlign:'center',background:'var(--green-dim)',borderColor:'rgba(34,217,138,0.3)'}}>
+                  <div style={{fontSize:24,marginBottom:8}}>🎉</div>
+                  <div style={{fontSize:14,fontWeight:600,color:'var(--green)',marginBottom:12}}>
+                    Все задачи выполнены!
+                  </div>
+                  <button
+                    className="btn btn-primary"
+                    style={{width:'100%',justifyContent:'center',background:'var(--green)',borderColor:'var(--green)'}}
+                    onClick={() => store.updateItem('orders', currentTask.id, {status:'done'})}>
+                    ✓ Завершить проект
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{marginBottom:14}}>
+                <div className="card" style={{padding:'16px',textAlign:'center',background:'var(--bg3)'}}>
+                  <div style={{fontSize:13,color:'var(--text2)',marginBottom:8}}>
+                    Нет подзадач для этого проекта
+                  </div>
+                  <div style={{fontSize:11,color:'var(--text3)'}}>
+                    Перейди в "Проект" чтобы разбить на задачи
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {subtasks.length === 0 && (
+              <button className="btn btn-primary" style={{width:'100%',justifyContent:'center',fontSize:14,padding:'12px'}}
+                onClick={() => store.updateItem('orders', currentTask.id, {status:'done'})}>
+                ✓ Завершить проект
+              </button>
+            )}
           </>
         ) : (
           <div style={{color:'var(--text2)',fontSize:13}}>
@@ -117,17 +188,17 @@ function FocusTab({ store }) {
 }
 
 // ─── Project tab — pick order, split into subtasks ───────────────────────
-function ProjectTab({ store }) {
+function ProjectTab({ store, setTab }) {
   const orders = (store.data.orders||[]).filter(o => !['issued'].includes(o.status));
   const [selectedOrderId, setSelectedOrderId] = useState(
     orders.find(o=>o.status==='in_progress')?.id || orders[0]?.id || ''
   );
   const [newTask, setNewTask] = useState('');
 
-  const order     = orders.find(o => o.id === selectedOrderId);
-  const subtasks  = order ? ((store.data.subtasks||{})[order.id] || []) : [];
-  const doneCnt   = subtasks.filter(t => t.done).length;
-  const pct       = subtasks.length > 0 ? Math.round((doneCnt/subtasks.length)*100) : 0;
+  const order = orders.find(o => o.id === selectedOrderId);
+  const subtasks = order ? ((store.data.subtasks||{})[order.id] || []) : [];
+  const doneCnt = subtasks.filter(t => t.done).length;
+  const pct = subtasks.length > 0 ? Math.round((doneCnt/subtasks.length)*100) : 0;
 
   const addSubtask = () => {
     if (!newTask.trim() || !order) return;
@@ -209,7 +280,7 @@ function ProjectTab({ store }) {
       {order && (
         <div className="card" style={{padding:'14px',borderColor:'rgba(34,208,228,0.25)'}}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
-            <div>
+            <div style={{flex:1}}>
               <div style={{fontSize:15,fontWeight:600,color:'var(--text0)'}}>{order.title}</div>
               <div style={{fontSize:11,color:'var(--text2)',marginTop:2}}>
                 {order.client} · <DeadlineBadge deadline={order.deadline}/>
@@ -226,7 +297,7 @@ function ProjectTab({ store }) {
                 <span>Выполнено {doneCnt} из {subtasks.length} задач</span>
                 <span style={{color:'var(--cyan)',fontWeight:600}}>{pct}%</span>
               </div>
-              <div className="progress" style={{height:6}}>
+              <div className="progress" style={{height:6,marginBottom:10}}>
                 <div className="progress-fill" style={{
                   width:pct+'%',
                   background: pct===100 ? 'var(--green)' : 'var(--cyan)'
@@ -234,6 +305,18 @@ function ProjectTab({ store }) {
               </div>
             </>
           )}
+
+          <button
+            className="btn"
+            style={{width:'100%',justifyContent:'center',borderColor:'var(--cyan)',color:'var(--cyan)'}}
+            onClick={() => {
+              if (order.status !== 'in_progress') {
+                store.updateItem('orders', order.id, {status: 'in_progress'});
+              }
+              setTab('focus');
+            }}>
+            🪨 Перейти в режим фокуса
+          </button>
         </div>
       )}
 
@@ -403,7 +486,7 @@ export default function StoneMode() {
       </div>
 
       {tab === 'focus'   && <FocusTab   store={store}/>}
-      {tab === 'project' && <ProjectTab store={store}/>}
+      {tab === 'project' && <ProjectTab store={store} setTab={setTab}/>}
     </div>
   );
 }
