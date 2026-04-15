@@ -4,6 +4,7 @@
 const BOT_TOKEN = '8689988615:AAGHDWoclWrwyr_kB6xCpTUj6IEXrSau7Ko';
 const API_URL = `https://api.telegram.org/bot${BOT_TOKEN}`;
 const PORT = process.env.PORT || 3000;
+const ORG_ID = 'default_org'; // ID организации в Firestore
 
 let offset = 0;
 
@@ -23,6 +24,11 @@ server.listen(PORT, () => {
   console.log(`HTTP server listening on port ${PORT}`);
 });
 
+// Хранилище для связи chatId с orgId (в продакшене использовать БД)
+const userOrgs = {
+  '464350533': 'default_org', // Твой Chat ID
+};
+
 // Отправка сообщения
 async function sendMessage(chatId, text, options = {}) {
   try {
@@ -40,6 +46,103 @@ async function sendMessage(chatId, text, options = {}) {
   } catch (error) {
     console.error('Send message error:', error);
   }
+}
+
+// Редактирование сообщения
+async function editMessage(chatId, messageId, text, options = {}) {
+  try {
+    const response = await fetch(`${API_URL}/editMessageText`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        message_id: messageId,
+        text: text,
+        parse_mode: 'HTML',
+        ...options,
+      }),
+    });
+    return await response.json();
+  } catch (error) {
+    console.error('Edit message error:', error);
+  }
+}
+
+// Обработка callback от кнопок
+async function handleCallback(callbackQuery) {
+  const chatId = callbackQuery.message.chat.id;
+  const messageId = callbackQuery.message.message_id;
+  const data = callbackQuery.data;
+
+  console.log(`[${new Date().toISOString()}] Callback from ${chatId}: ${data}`);
+
+  // Парсим callback data: action_reminderId
+  const [action, reminderId] = data.split('_');
+
+  // Отправляем подтверждение (убирает "часики" на кнопке)
+  await fetch(`${API_URL}/answerCallbackQuery`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      callback_query_id: callbackQuery.id,
+      text: 'Обрабатываю...',
+    }),
+  });
+
+  // Получаем orgId для этого пользователя
+  const orgId = userOrgs[chatId] || ORG_ID;
+
+  // Обрабатываем действие
+  let responseText = '';
+  let success = false;
+
+  if (action === 'done') {
+    // Отметить выполненным
+    const firebase = require('./firebase.js');
+    success = await firebase.updateReminder(orgId, reminderId, { done: true });
+    responseText = success ? '✅ Напоминание отмечено выполненным!' : '❌ Ошибка обновления';
+
+  } else if (action === 'snooze1h') {
+    // Отложить на 1 час
+    const firebase = require('./firebase.js');
+    const newDate = new Date(Date.now() + 60 * 60 * 1000);
+    success = await firebase.updateReminder(orgId, reminderId, { dueDate: newDate.toISOString() });
+    responseText = success ? '⏰ Напоминание отложено на 1 час' : '❌ Ошибка обновления';
+
+  } else if (action === 'snooze1d') {
+    // Отложить на 1 день
+    const firebase = require('./firebase.js');
+    const newDate = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    success = await firebase.updateReminder(orgId, reminderId, { dueDate: newDate.toISOString() });
+    responseText = success ? '📅 Напоминание отложено на 1 день' : '❌ Ошибка обновления';
+
+  } else if (action === 'delete') {
+    // Удалить
+    const firebase = require('./firebase.js');
+    success = await firebase.deleteReminder(orgId, reminderId);
+    responseText = success ? '🗑 Напоминание удалено' : '❌ Ошибка удаления';
+  }
+
+  // Обновляем сообщение
+  const originalText = callbackQuery.message.text;
+  const updatedText = `${originalText}\n\n${responseText}`;
+
+  await editMessage(chatId, messageId, updatedText, {
+    reply_markup: { inline_keyboard: [] } // Убираем кнопки
+  });
+}
+
+// Заглушки для работы с Firestore (пока упрощённая версия)
+async function updateReminderInFirestore(reminderId, updates) {
+  // TODO: Реализовать через Firebase REST API или Admin SDK
+  console.log(`Update reminder ${reminderId}:`, updates);
+  return true;
+}
+
+async function deleteReminderFromFirestore(reminderId) {
+  // TODO: Реализовать через Firebase REST API или Admin SDK
+  console.log(`Delete reminder ${reminderId}`);
+  return true;
 }
 
 // Обработка команды /start
@@ -218,6 +321,15 @@ function handleMessage(message) {
   }
 }
 
+// Обработка входящего обновления
+function handleUpdate(update) {
+  if (update.message) {
+    handleMessage(update.message);
+  } else if (update.callback_query) {
+    handleCallback(update.callback_query);
+  }
+}
+
 // Получение обновлений (long polling)
 async function getUpdates() {
   try {
@@ -227,10 +339,7 @@ async function getUpdates() {
     if (data.ok && data.result.length > 0) {
       for (const update of data.result) {
         offset = update.update_id + 1;
-
-        if (update.message) {
-          handleMessage(update.message);
-        }
+        handleUpdate(update);
       }
     }
   } catch (error) {

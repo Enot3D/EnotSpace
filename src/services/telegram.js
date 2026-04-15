@@ -91,7 +91,13 @@ export async function checkAndSendNotifications(reminders, chatId, store) {
     if (reminder.done || !reminder.telegramNotify) continue;
 
     // Проверяем, не отправляли ли уже это уведомление
-    if (sent[reminder.id]) continue;
+    const sentTime = sent[reminder.id];
+    if (sentTime) {
+      // Если отправляли меньше часа назад - пропускаем
+      if (Date.now() - sentTime < 60 * 60 * 1000) {
+        continue;
+      }
+    }
 
     const dueDate = new Date(reminder.dueDate);
     let shouldNotify = false;
@@ -106,7 +112,7 @@ export async function checkAndSendNotifications(reminders, chatId, store) {
     // Проверяем, пора ли отправлять уведомление
     const timeDiff = notifyTime - now;
 
-    // Отправляем если время подошло (в пределах 5 минут)
+    // Отправляем если время подошло (в пределах 5 минут до или после)
     if (timeDiff > -5 * 60 * 1000 && timeDiff < 5 * 60 * 1000) {
       shouldNotify = true;
     }
@@ -120,7 +126,7 @@ export async function checkAndSendNotifications(reminders, chatId, store) {
       });
 
       if (result.success) {
-        // Отмечаем как отправленное
+        // Отмечаем как отправленное с текущим временем
         sent[reminder.id] = Date.now();
         localStorage.setItem(sentKey, JSON.stringify(sent));
 
