@@ -3,8 +3,25 @@
 
 const BOT_TOKEN = '8689988615:AAGHDWoclWrwyr_kB6xCpTUj6IEXrSau7Ko';
 const API_URL = `https://api.telegram.org/bot${BOT_TOKEN}`;
+const PORT = process.env.PORT || 3000;
 
 let offset = 0;
+
+// Простой HTTP сервер для Render (чтобы не засыпал)
+const http = require('http');
+const server = http.createServer((req, res) => {
+  if (req.url === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok', bot: 'running' }));
+  } else {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('ENOT SPACE Bot is running! 🤖');
+  }
+});
+
+server.listen(PORT, () => {
+  console.log(`HTTP server listening on port ${PORT}`);
+});
 
 // Отправка сообщения
 async function sendMessage(chatId, text, options = {}) {
