@@ -1,0 +1,16 @@
+{
+  "name": "enot-space-bot",
+  "version": "1.0.0",
+  "description": "Telegram bot for ENOT SPACE production management",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": ["telegram", "bot", "enot-space", "production"],
+  "author": "ENOT SPACE",
+  "license": "MIT",
+  "dependencies": {}
+}

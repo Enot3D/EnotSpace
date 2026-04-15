@@ -14,6 +14,7 @@ const defaultData = {
     weeklyGoal: 25000,
     laborRatePerHour: 0,
     reservePercent: 10, // % от каждого заказа на "чёрный день"
+    telegramChatId: '464350533', // ID чата для уведомлений
   },
   orders: [],
   clients: [],
@@ -28,6 +29,8 @@ const defaultData = {
   reminders: [],
   // subtasks per order: { orderId: [ {id, title, done} ] }
   subtasks: {},
+  // project notes: { orderId: [ {id, title, body, createdAt} ] }
+  projectNotes: {},
 };
 
 function loadData() {
@@ -40,6 +43,7 @@ function loadData() {
       ...parsed,
       settings: { ...defaultData.settings, ...(parsed.settings || {}) },
       subtasks: parsed.subtasks || {},
+      projectNotes: parsed.projectNotes || {},
       reminders: parsed.reminders || [],
     };
   } catch {

@@ -567,8 +567,17 @@ export function More() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showUserManagement, setShowUserManagement] = useState(false);
   const [showRoleManagement, setShowRoleManagement] = useState(false);
+  const [botUsername, setBotUsername] = useState('');
   const { settings } = store.data;
   const [s, setS] = useState(settings);
+
+  // Получаем информацию о боте при открытии настроек
+  React.useEffect(() => {
+    if (settingsOpen) {
+      // Используем хардкод имени бота
+      setBotUsername('enotspacebot');
+    }
+  }, [settingsOpen]);
 
   const saveSettings = () => {
     store.update(d => ({...d, settings:{ ...d.settings, ...s, electricityRate:Number(s.electricityRate), defaultMargin:Number(s.defaultMargin), monthlyGoal:Number(s.monthlyGoal), weeklyGoal:Number(s.weeklyGoal), laborRatePerHour:Number(s.laborRatePerHour)||0, reservePercent:Number(s.reservePercent)||0 }}));
@@ -665,14 +674,48 @@ export function More() {
               <input type="number" min="0" max="50" value={s.reservePercent||0} onChange={e=>setS(p=>({...p,reservePercent:e.target.value}))} placeholder="10"/>
               <div style={{fontSize:11,color:'var(--text2)',marginTop:3}}>Авто-списывается при оплате заказа в отдельную категорию «Резерв»</div>
             </div>
-            <div style={{height:1,background:'var(--border)',margin:'8px 0'}}/>
-            <div style={{fontSize:11,color:'var(--amber)',fontWeight:600,letterSpacing:'0.07em',textTransform:'uppercase',marginBottom:8}}>Резерв «Чёрный день»</div>
-            <div className="form-group">
-              <label>% от каждого оплаченного заказа в резерв</label>
-              <input type="number" min="0" max="100" value={s.reservePercent||0} onChange={e=>setS(p=>({...p,reservePercent:Number(e.target.value)}))}/>
-              <div style={{fontSize:11,color:'var(--text3)',marginTop:4}}>При оплате заказа сумма резерва автоматически записывается в расходы отдельной строкой</div>
+
+            <div style={{height:1,background:'var(--border)',margin:'16px 0'}}/>
+
+            {/* Telegram Settings */}
+            <div style={{fontSize:11,color:'var(--cyan)',fontWeight:600,letterSpacing:'0.07em',textTransform:'uppercase',marginBottom:8}}>
+              📱 Уведомления Telegram
             </div>
-            <div style={{display:'flex',gap:8,marginTop:8}}>
+            <div className="form-group">
+              <label>Telegram Chat ID</label>
+              <input
+                value={s.telegramChatId||''}
+                onChange={e=>setS(p=>({...p,telegramChatId:e.target.value}))}
+                placeholder="123456789"
+              />
+              <div style={{fontSize:11,color:'var(--text3)',marginTop:4}}>
+                {botUsername ? (
+                  <>
+                    1. Открой бота{' '}
+                    <a href={`https://t.me/${botUsername}`} target="_blank" rel="noopener noreferrer" style={{color:'var(--cyan)'}}>
+                      @{botUsername}
+                    </a>
+                    {' '}и напиши /start<br/>
+                    2. Скопируй Chat ID и вставь сюда
+                  </>
+                ) : (
+                  <>
+                    Чтобы получить Chat ID: напиши боту <a href="https://t.me/userinfobot" target="_blank" rel="noopener noreferrer" style={{color:'var(--cyan)'}}>@userinfobot</a>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {s.telegramChatId && (
+              <div style={{background:'var(--green-dim)',border:'1px solid rgba(34,217,138,0.25)',borderRadius:8,padding:'10px 12px',marginBottom:12}}>
+                <div style={{fontSize:11,color:'var(--green)',display:'flex',alignItems:'center',gap:6}}>
+                  <span>✓</span>
+                  <span>Telegram подключен! Уведомления будут приходить автоматически.</span>
+                </div>
+              </div>
+            )}
+
+            <div style={{display:'flex',gap:8,marginTop:8}}>>
               <button className="btn btn-primary" style={{flex:1}} onClick={saveSettings}>Сохранить</button>
               <button className="btn" onClick={()=>setSettingsOpen(false)}>Отмена</button>
             </div>

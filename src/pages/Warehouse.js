@@ -172,6 +172,111 @@ function MatModal({ item, onClose, store }) {
   );
 }
 
+// ───── Sell Product Modal ─────
+function SellModal({ product, onClose, store }) {
+  const [qty, setQty] = useState(1);
+  const [client, setClient] = useState('');
+  const [notes, setNotes] = useState('');
+
+  const totalPrice = product.price * qty;
+  const totalCost = product.cost * qty;
+  const profit = totalPrice - totalCost;
+
+  const sell = () => {
+    if (qty <= 0) return alert('Укажи количество');
+    if (qty > product.quantity) return alert('Недостаточно товара на складе');
+
+    // Списываем со склада
+    store.updateItem('products', product.id, {
+      quantity: product.quantity - qty
+    });
+
+    // Записываем доход в финансы
+    store.addItem('transactions', {
+      id: uuid(),
+      type: 'income',
+      category: 'order',
+      amount: totalPrice,
+      description: `Продажа: ${product.name} (${qty} шт)${client ? ' · ' + client : ''}`,
+      date: new Date().toISOString(),
+      productId: product.id,
+    });
+
+    // Записываем себестоимость как расход (для учёта)
+    if (totalCost > 0) {
+      store.addItem('transactions', {
+        id: uuid(),
+        type: 'expense',
+        category: 'materials',
+        amount: totalCost,
+        description: `Себестоимость: ${product.name} (${qty} шт)`,
+        date: new Date().toISOString(),
+        productId: product.id,
+      });
+    }
+
+    onClose();
+  };
+
+  return (
+    <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal">
+        <div className="modal-handle"/>
+        <div className="modal-title">Списать товар</div>
+
+        <div style={{background:'var(--bg3)',borderRadius:10,padding:'14px',marginBottom:12}}>
+          <div style={{fontSize:13,fontWeight:500,color:'var(--text0)',marginBottom:4}}>{product.name}</div>
+          <div style={{fontSize:11,color:'var(--text2)'}}>
+            На складе: {product.quantity} шт · Цена: {fmt(product.price)} ₽/шт
+          </div>
+        </div>
+
+        <div className="form-group">
+          <label>Количество *</label>
+          <input type="number" min="1" max={product.quantity} value={qty}
+            onChange={e => setQty(Number(e.target.value))} autoFocus/>
+        </div>
+
+        <div className="form-group">
+          <label>Клиент (необязательно)</label>
+          <input value={client} onChange={e => setClient(e.target.value)}
+            placeholder="Имя клиента или компании"/>
+        </div>
+
+        <div className="form-group">
+          <label>Примечание</label>
+          <textarea value={notes} onChange={e => setNotes(e.target.value)}
+            placeholder="Дополнительная информация..." style={{minHeight:60}}/>
+        </div>
+
+        {/* Summary */}
+        <div style={{background:'var(--green-dim)',border:'1px solid rgba(34,217,138,0.25)',borderRadius:10,padding:'12px',marginBottom:12}}>
+          <div style={{display:'flex',justifyContent:'space-between',marginBottom:6}}>
+            <span style={{fontSize:12,color:'var(--text2)'}}>Выручка:</span>
+            <span style={{fontSize:14,fontWeight:600,color:'var(--green)'}}>{fmt(totalPrice)} ₽</span>
+          </div>
+          <div style={{display:'flex',justifyContent:'space-between',marginBottom:6}}>
+            <span style={{fontSize:12,color:'var(--text2)'}}>Себестоимость:</span>
+            <span style={{fontSize:14,fontWeight:600,color:'var(--red)'}}>{fmt(totalCost)} ₽</span>
+          </div>
+          <div style={{height:'1px',background:'var(--border)',margin:'8px 0'}}/>
+          <div style={{display:'flex',justifyContent:'space-between'}}>
+            <span style={{fontSize:13,color:'var(--text1)',fontWeight:600}}>Прибыль:</span>
+            <span style={{fontSize:16,fontWeight:700,fontFamily:'var(--font-display)',color:'var(--green)'}}>{fmt(profit)} ₽</span>
+          </div>
+        </div>
+
+        <div style={{display:'flex',gap:8}}>
+          <button className="btn btn-primary" style={{flex:1,background:'var(--green)',borderColor:'var(--green)'}} onClick={sell}>
+            Списать {qty} шт
+          </button>
+          <button className="btn" onClick={onClose}>Отмена</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ───── Product Modal ─────
 function ProdModal({ item, onClose, store }) {
   const isNew = !item.id;
@@ -378,6 +483,7 @@ export default function Warehouse({ sub }) {
   const [tab, setTab] = useState(sub==='products' ? 'products' : 'materials');
   const [modal, setModal] = useState(null);
   const [purchaseModal, setPurchaseModal] = useState(false);
+  const [sellModal, setSellModal] = useState(null);
 
   const { materials, products } = store.data;
   const totalMatValue = materials.reduce((s,m) => s+(m.quantity/100*m.costPer100g),0);
@@ -452,9 +558,9 @@ export default function Warehouse({ sub }) {
             const avail = p.quantity - (p.reservedQty||0);
             const margin = p.price>0 ? Math.round(((p.price-p.cost)/p.price)*100) : 0;
             return (
-              <div key={p.id} className="card card-hover" style={{marginBottom:8,padding:'12px 14px'}} onClick={()=>setModal({...p,_type:'product'})}>
+              <div key={p.id} className="card" style={{marginBottom:8,padding:'12px 14px'}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:6}}>
-                  <div>
+                  <div style={{flex:1,cursor:'pointer'}} onClick={()=>setModal({...p,_type:'product'})}>
                     <div style={{fontSize:13,fontWeight:500,color:'var(--text0)'}}>{p.name}</div>
                     <div style={{fontSize:11,color:'var(--text2)',marginTop:2}}>{p.sku} · {p.category}</div>
                   </div>
@@ -463,11 +569,19 @@ export default function Warehouse({ sub }) {
                     <div style={{fontSize:10,color:'var(--text3)'}}>своб. {avail}</div>
                   </div>
                 </div>
-                <div style={{display:'flex',justifyContent:'space-between',fontSize:11,color:'var(--text2)'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:11,color:'var(--text2)',marginBottom:8}}>
                   <span>себест. {fmt(p.cost)} ₽</span>
                   <span style={{color:'var(--cyan)'}}>продажа {fmt(p.price)} ₽</span>
                   <span style={{color:'var(--green)'}}>маржа {margin}%</span>
                 </div>
+                {p.quantity > 0 && (
+                  <button
+                    className="btn btn-sm"
+                    style={{width:'100%',justifyContent:'center',borderColor:'var(--green)',color:'var(--green)'}}
+                    onClick={(e) => { e.stopPropagation(); setSellModal(p); }}>
+                    💰 Списать товар
+                  </button>
+                )}
               </div>
             );
           })}
@@ -507,6 +621,7 @@ export default function Warehouse({ sub }) {
       )}
 
       {purchaseModal && <PurchaseModal onClose={()=>setPurchaseModal(false)} store={store}/>}
+      {sellModal && <SellModal product={sellModal} onClose={()=>setSellModal(null)} store={store}/>}
     </div>
   );
 }

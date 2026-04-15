@@ -31,6 +31,9 @@ function ReminderModal({ item, onClose, store }) {
     orderId: '',
     priority: 'normal',
     done: false,
+    notifyBefore: '', // '1h', '1d', '1w', etc
+    repeatInterval: '', // 'daily', 'weekly', 'monthly'
+    telegramNotify: false,
   });
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
 
@@ -104,6 +107,49 @@ function ReminderModal({ item, onClose, store }) {
                 <option key={o.id} value={o.id}>{o.title} · {o.client}</option>
               ))}
             </select>
+          </div>
+        </div>
+
+        {/* Notification settings */}
+        <div style={{background:'var(--bg3)',border:'1px solid var(--border)',borderRadius:10,padding:'14px',marginBottom:12}}>
+          <div style={{fontSize:11,color:'var(--cyan)',fontWeight:600,letterSpacing:'0.07em',textTransform:'uppercase',marginBottom:12}}>
+            🔔 Уведомления
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+            <div className="form-group" style={{marginBottom:0}}>
+              <label>Напомнить заранее</label>
+              <select value={f.notifyBefore || ''} onChange={e => set('notifyBefore', e.target.value)}>
+                <option value="">В срок</option>
+                <option value="1h">За 1 час</option>
+                <option value="3h">За 3 часа</option>
+                <option value="1d">За 1 день</option>
+                <option value="3d">За 3 дня</option>
+                <option value="1w">За неделю</option>
+              </select>
+            </div>
+            <div className="form-group" style={{marginBottom:0}}>
+              <label>Повторять</label>
+              <select value={f.repeatInterval || ''} onChange={e => set('repeatInterval', e.target.value)}>
+                <option value="">Не повторять</option>
+                <option value="daily">Каждый день</option>
+                <option value="weekly">Каждую неделю</option>
+                <option value="monthly">Каждый месяц</option>
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <input
+              type="checkbox"
+              id="tg-notify"
+              checked={!!f.telegramNotify}
+              onChange={e => set('telegramNotify', e.target.checked)}
+              style={{ width: 16, height: 16, accentColor: 'var(--cyan)', flexShrink: 0 }}
+            />
+            <label htmlFor="tg-notify" style={{ margin: 0, cursor: 'pointer', color: 'var(--text1)', fontSize: 13 }}>
+              Отправить в Telegram
+            </label>
           </div>
         </div>
 

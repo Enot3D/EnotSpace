@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './index.css';
 import { useStore } from './data/store';
 import { onAuthChange, getUserData, getRolePermissions } from './firebase/auth';
+import { checkAndSendNotifications } from './services/telegram';
 import StatusBar from './components/StatusBar';
 import BottomNav from './components/BottomNav';
 import Dashboard from './pages/Dashboard';
@@ -41,6 +42,29 @@ export default function App() {
       navigator.serviceWorker.register('/sw.js').catch(() => {});
     }
   }, []);
+
+  // Telegram notifications checker
+  useEffect(() => {
+    if (!user && !devMode) return; // Don't run if not authenticated
+
+    const chatId = store.data.settings?.telegramChatId;
+    if (!chatId) return;
+
+    const checkNotifications = async () => {
+      try {
+        const reminders = store.data.reminders || [];
+        await checkAndSendNotifications(reminders, chatId, store);
+      } catch (error) {
+        console.error('Notification check failed:', error);
+      }
+    };
+
+    // Check every 5 minutes
+    const interval = setInterval(checkNotifications, 5 * 60 * 1000);
+    checkNotifications(); // Initial check
+
+    return () => clearInterval(interval);
+  }, [store.data.reminders, store.data.settings?.telegramChatId, user, devMode, store]);
 
   // Auth listener
   useEffect(() => {
