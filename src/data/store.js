@@ -33,6 +33,8 @@ const defaultData = {
   projectNotes: {},
   // daily tasks: { 'YYYY-MM-DD': [ {id, title, done, createdAt, blockedUntil} ] }
   dailyTasks: {},
+  // user categories: { userId: [ {id, name, icon, color} ] }
+  userCategories: {},
 };
 
 function loadData() {
@@ -48,6 +50,7 @@ function loadData() {
       projectNotes: parsed.projectNotes || {},
       reminders: parsed.reminders || [],
       dailyTasks: parsed.dailyTasks || {},
+      userCategories: parsed.userCategories || {},
     };
   } catch {
     return defaultData;

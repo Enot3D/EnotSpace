@@ -18,6 +18,11 @@ export default function DailyPlanner() {
   const [users, setUsers] = useState([]);
   const [delegateTaskId, setDelegateTaskId] = useState(null);
   const [delegateToUserId, setDelegateToUserId] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [newTaskCategory, setNewTaskCategory] = useState('');
+  const [showCategoryManager, setShowCategoryManager] = useState(false);
+  const [editingCategoryId, setEditingCategoryId] = useState(null);
+  const [editingCategoryName, setEditingCategoryName] = useState('');
 
   const currentUserId = auth?.user?.uid || 'dev';
   const isAdmin = auth?.userData?.role === 'admin';
@@ -37,10 +42,19 @@ export default function DailyPlanner() {
   };
 
   const dailyTasks = store.data.dailyTasks || {};
+  const userCategories = store.data.userCategories || {};
 
   // Определяем, чьи задачи показываем
   const viewingUserId = showManagement && managementUserId ? managementUserId : currentUserId;
-  const todayTasks = (dailyTasks[selectedDate]?.[viewingUserId]) || [];
+  const allTodayTasks = (dailyTasks[selectedDate]?.[viewingUserId]) || [];
+
+  // Фильтрация по категории
+  const todayTasks = selectedCategory === 'all'
+    ? allTodayTasks
+    : allTodayTasks.filter(t => t.category === selectedCategory);
+
+  // Категории текущего пользователя
+  const myCategories = userCategories[viewingUserId] || [];
 
   // Автоматический перенос невыполненных задач текущего пользователя
   useEffect(() => {
@@ -115,6 +129,7 @@ export default function DailyPlanner() {
       done: false,
       createdAt: new Date().toISOString(),
       blockedUntil: null,
+      category: newTaskCategory || null,
     };
 
     const targetUserId = showManagement && managementUserId ? managementUserId : currentUserId;
@@ -131,6 +146,7 @@ export default function DailyPlanner() {
     }));
 
     setNewTaskTitle('');
+    setNewTaskCategory('');
   }
 
   function toggleTask(taskId) {
@@ -284,9 +300,71 @@ export default function DailyPlanner() {
     setDelegateToUserId('');
   }
 
-  // Прогресс дня
-  const totalTasks = todayTasks.length;
-  const doneTasks = todayTasks.filter(t => t.done).length;
+  // ═══════════════════════════════════════════
+  // КАТЕГОРИИ
+  // ═══════════════════════════════════════════
+
+  function addCategory(name, icon) {
+    if (!name.trim()) return;
+
+    const category = {
+      id: uuid(),
+      name: name.trim(),
+      icon: icon || '📁',
+    };
+
+    store.update(prev => ({
+      ...prev,
+      userCategories: {
+        ...prev.userCategories,
+        [viewingUserId]: [...(prev.userCategories[viewingUserId] || []), category],
+      },
+    }));
+  }
+
+  function updateCategory(categoryId, newName) {
+    if (!newName.trim()) return;
+
+    const updated = myCategories.map(c =>
+      c.id === categoryId ? { ...c, name: newName.trim() } : c
+    );
+
+    store.update(prev => ({
+      ...prev,
+      userCategories: {
+        ...prev.userCategories,
+        [viewingUserId]: updated,
+      },
+    }));
+
+    setEditingCategoryId(null);
+    setEditingCategoryName('');
+  }
+
+  function deleteCategory(categoryId) {
+    if (!window.confirm('Удалить категорию? Задачи с этой категорией останутся без категории.')) return;
+
+    const updated = myCategories.filter(c => c.id !== categoryId);
+
+    store.update(prev => ({
+      ...prev,
+      userCategories: {
+        ...prev.userCategories,
+        [viewingUserId]: updated,
+      },
+    }));
+  }
+
+  function getCategoryStats(categoryId) {
+    const categoryTasks = allTodayTasks.filter(t => t.category === categoryId);
+    const total = categoryTasks.length;
+    const done = categoryTasks.filter(t => t.done).length;
+    return { total, done, allDone: total > 0 && done === total };
+  }
+
+  // Прогресс дня (по всем задачам, не только отфильтрованным)
+  const totalTasks = allTodayTasks.length;
+  const doneTasks = allTodayTasks.filter(t => t.done).length;
   const progress = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
 
   // Список доступных дат (последние 30 дней)
@@ -302,6 +380,11 @@ export default function DailyPlanner() {
   function getTaskCountForDate(dateStr) {
     const userTasks = dailyTasks[dateStr]?.[viewingUserId] || [];
     return userTasks.length;
+  }
+
+  // Найти категорию по ID
+  function getCategoryById(categoryId) {
+    return myCategories.find(c => c.id === categoryId);
   }
 
   return (
@@ -494,31 +577,294 @@ export default function DailyPlanner() {
         </div>
       )}
 
-      {/* Добавление задачи */}
-      <div style={{
-        display: 'flex',
-        gap: 8,
-        marginBottom: 16,
-      }}>
-        <input
-          type="text"
-          value={newTaskTitle}
-          onChange={(e) => setNewTaskTitle(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && addTask()}
-          placeholder="Новая задача..."
-          style={{
-            flex: 1,
-            padding: '12px 16px',
-            fontSize: 16,
-            border: '1px solid var(--border)',
-            borderRadius: 12,
+      {/* Фильтр по категориям */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <span style={{ fontSize: 14, color: 'var(--text2)', fontWeight: 500 }}>Категории:</span>
+          <button
+            onClick={() => setShowCategoryManager(true)}
+            style={{
+              padding: '4px 12px',
+              fontSize: 12,
+              border: 'none',
+              borderRadius: 8,
+              background: 'var(--purple)',
+              color: 'white',
+              cursor: 'pointer',
+            }}
+          >
+            ⚙️ Управление
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {/* Кнопка "Все" */}
+          <button
+            onClick={() => setSelectedCategory('all')}
+            style={{
+              padding: '8px 16px',
+              fontSize: 14,
+              border: selectedCategory === 'all' ? '2px solid var(--cyan)' : '1px solid var(--border)',
+              borderRadius: 10,
+              background: selectedCategory === 'all' ? 'var(--cyan)' : 'var(--bg1)',
+              color: selectedCategory === 'all' ? 'white' : 'var(--text)',
+              cursor: 'pointer',
+              fontWeight: selectedCategory === 'all' ? 600 : 400,
+            }}
+          >
+            Все {totalTasks > 0 && `${doneTasks}/${totalTasks}`}
+          </button>
+
+          {/* Кнопки категорий */}
+          {myCategories.map(category => {
+            const stats = getCategoryStats(category.id);
+            const isSelected = selectedCategory === category.id;
+            const isCompleted = stats.allDone;
+
+            return (
+              <button
+                key={category.id}
+                onClick={() => setSelectedCategory(category.id)}
+                style={{
+                  padding: '8px 16px',
+                  fontSize: 14,
+                  border: isSelected ? '2px solid var(--cyan)' : isCompleted ? '2px solid var(--green)' : '1px solid var(--border)',
+                  borderRadius: 10,
+                  background: isSelected ? 'var(--cyan)' : isCompleted ? 'var(--green)' : 'var(--bg1)',
+                  color: isSelected || isCompleted ? 'white' : 'var(--text)',
+                  cursor: 'pointer',
+                  fontWeight: isSelected ? 600 : 400,
+                }}
+              >
+                {isCompleted && '✓ '}{category.icon} {category.name} {stats.total > 0 && `${stats.done}/${stats.total}`}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Модальное окно управления категориями */}
+      {showCategoryManager && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: 16,
+        }}>
+          <div style={{
             background: 'var(--bg1)',
-            color: 'var(--text)',
-          }}
-        />
-        <button
-          onClick={addTask}
-          style={{
+            borderRadius: 16,
+            padding: 24,
+            maxWidth: 500,
+            width: '100%',
+            maxHeight: '80vh',
+            overflow: 'auto',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ margin: 0, fontSize: 20, color: 'var(--text)' }}>⚙️ Управление категориями</h3>
+              <button
+                onClick={() => setShowCategoryManager(false)}
+                style={{
+                  padding: '4px 12px',
+                  fontSize: 14,
+                  border: 'none',
+                  borderRadius: 8,
+                  background: 'var(--red)',
+                  color: 'white',
+                  cursor: 'pointer',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Форма добавления категории */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 14, color: 'var(--text2)', marginBottom: 8 }}>Новая категория:</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="text"
+                  placeholder="Название..."
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      addCategory(e.target.value, '📁');
+                      e.target.value = '';
+                    }
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '10px 12px',
+                    fontSize: 14,
+                    border: '1px solid var(--border)',
+                    borderRadius: 8,
+                    background: 'var(--bg0)',
+                    color: 'var(--text)',
+                  }}
+                />
+                <button
+                  onClick={(e) => {
+                    const input = e.target.previousSibling;
+                    addCategory(input.value, '📁');
+                    input.value = '';
+                  }}
+                  style={{
+                    padding: '10px 20px',
+                    fontSize: 14,
+                    border: 'none',
+                    borderRadius: 8,
+                    background: 'var(--cyan)',
+                    color: 'white',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                  }}
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
+            {/* Список категорий */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {myCategories.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 20, color: 'var(--text-dim)', fontSize: 14 }}>
+                  Нет категорий. Создайте первую!
+                </div>
+              ) : (
+                myCategories.map(category => (
+                  <div
+                    key={category.id}
+                    style={{
+                      background: 'var(--bg0)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 10,
+                      padding: 12,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 12,
+                    }}
+                  >
+                    <span style={{ fontSize: 20 }}>{category.icon}</span>
+
+                    {editingCategoryId === category.id ? (
+                      <input
+                        type="text"
+                        value={editingCategoryName}
+                        onChange={(e) => setEditingCategoryName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') updateCategory(category.id, editingCategoryName);
+                          if (e.key === 'Escape') setEditingCategoryId(null);
+                        }}
+                        onBlur={() => updateCategory(category.id, editingCategoryName)}
+                        autoFocus
+                        style={{
+                          flex: 1,
+                          padding: '6px 10px',
+                          fontSize: 14,
+                          border: '1px solid var(--cyan)',
+                          borderRadius: 6,
+                          background: 'var(--bg1)',
+                          color: 'var(--text)',
+                        }}
+                      />
+                    ) : (
+                      <div
+                        onClick={() => {
+                          setEditingCategoryId(category.id);
+                          setEditingCategoryName(category.name);
+                        }}
+                        style={{
+                          flex: 1,
+                          fontSize: 16,
+                          color: 'var(--text)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {category.name}
+                      </div>
+                    )}
+
+                    <button
+                      onClick={() => deleteCategory(category.id)}
+                      style={{
+                        padding: '6px 12px',
+                        fontSize: 12,
+                        border: 'none',
+                        borderRadius: 6,
+                        background: 'var(--red)',
+                        color: 'white',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Добавление задачи */}
+      <div style={{ marginBottom: 16 }}>
+        {/* Выбор категории */}
+        {myCategories.length > 0 && (
+          <div style={{ marginBottom: 8 }}>
+            <select
+              value={newTaskCategory}
+              onChange={(e) => setNewTaskCategory(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                fontSize: 14,
+                border: '1px solid var(--border)',
+                borderRadius: 10,
+                background: 'var(--bg1)',
+                color: 'var(--text)',
+                cursor: 'pointer',
+              }}
+            >
+              <option value="">Без категории</option>
+              {myCategories.map(cat => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.icon} {cat.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Поле ввода задачи */}
+        <div style={{
+          display: 'flex',
+          gap: 8,
+        }}>
+          <input
+            type="text"
+            value={newTaskTitle}
+            onChange={(e) => setNewTaskTitle(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && addTask()}
+            placeholder="Новая задача..."
+            style={{
+              flex: 1,
+              padding: '12px 16px',
+              fontSize: 16,
+              border: '1px solid var(--border)',
+              borderRadius: 12,
+              background: 'var(--bg1)',
+              color: 'var(--text)',
+            }}
+          />
+          <button
+            onClick={addTask}
+            style={{
             padding: '12px 20px',
             fontSize: 16,
             border: 'none',
@@ -531,6 +877,7 @@ export default function DailyPlanner() {
         >
           +
         </button>
+        </div>
       </div>
 
       {/* Список задач */}
@@ -548,6 +895,7 @@ export default function DailyPlanner() {
           todayTasks.map(task => {
             const blocked = isTaskBlocked(task);
             const canDelegate = isAdmin && !showManagement && viewingUserId === currentUserId;
+            const taskCategory = task.category ? getCategoryById(task.category) : null;
 
             return (
               <div
@@ -582,6 +930,13 @@ export default function DailyPlanner() {
                   >
                     {task.done && '✓'}
                   </button>
+
+                  {/* Иконка категории */}
+                  {taskCategory && (
+                    <span style={{ fontSize: 18, flexShrink: 0 }}>
+                      {taskCategory.icon}
+                    </span>
+                  )}
 
                   {/* Название */}
                   {editingId === task.id ? (
