@@ -6,7 +6,7 @@ const NAV_ITEMS = [
   { id:'dashboard',  icon:'⬡',  label:'Главная' },
   { id:'orders',     icon:'📋', label:'Заказы' },
   { id:'warehouse',  icon:'🏭', label:'Склад' },
-  { id:'reminders',  icon:'🔔', label:'План' },
+  { id:'daily',      icon:'📅', label:'День' },
   { id:'more',       icon:'⋯',  label:'Ещё' },
 ];
 

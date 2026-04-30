@@ -31,6 +31,8 @@ const defaultData = {
   subtasks: {},
   // project notes: { orderId: [ {id, title, body, createdAt} ] }
   projectNotes: {},
+  // daily tasks: { 'YYYY-MM-DD': [ {id, title, done, createdAt, blockedUntil} ] }
+  dailyTasks: {},
 };
 
 function loadData() {
@@ -45,6 +47,7 @@ function loadData() {
       subtasks: parsed.subtasks || {},
       projectNotes: parsed.projectNotes || {},
       reminders: parsed.reminders || [],
+      dailyTasks: parsed.dailyTasks || {},
     };
   } catch {
     return defaultData;

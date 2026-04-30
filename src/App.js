@@ -15,9 +15,10 @@ import Goals from './pages/Goals';
 import StoneMode from './pages/StoneMode';
 import More from './pages/More';
 import Reminders from './pages/Reminders';
+import DailyPlanner from './pages/DailyPlanner';
 import LoginPage from './pages/LoginPage';
 
-const PAGES = ['dashboard','orders','warehouse','finance','printers','clients','goals','stone','more'];
+const PAGES = ['dashboard','orders','warehouse','finance','printers','clients','goals','stone','daily','more'];
 
 export const StoreContext = React.createContext(null);
 export const NavContext = React.createContext(null);
@@ -105,6 +106,7 @@ export default function App() {
       case 'clients': return <Clients />;
       case 'goals': return <Goals />;
       case 'stone': return <StoneMode />;
+      case 'daily': return <DailyPlanner />;
       case 'more': return <More />;
       case 'reminders': return <Reminders />;
       default: return <Dashboard />;
