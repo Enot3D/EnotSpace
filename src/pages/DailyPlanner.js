@@ -10,6 +10,7 @@ export default function DailyPlanner() {
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [editingTitle, setEditingTitle] = useState('');
+  const [editingCategory, setEditingCategory] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(null);
   const [moveToDate, setMoveToDate] = useState('');
   const [blockUntilDate, setBlockUntilDate] = useState('');
@@ -184,6 +185,7 @@ export default function DailyPlanner() {
   function startEdit(task) {
     setEditingId(task.id);
     setEditingTitle(task.title);
+    setEditingCategory(task.category || '');
   }
 
   function saveEdit() {
@@ -192,8 +194,12 @@ export default function DailyPlanner() {
       return;
     }
 
-    const tasks = todayTasks;
-    const updated = tasks.map(t => t.id === editingId ? { ...t, title: editingTitle.trim() } : t);
+    const tasks = allTodayTasks;
+    const updated = tasks.map(t =>
+      t.id === editingId
+        ? { ...t, title: editingTitle.trim(), category: editingCategory || null }
+        : t
+    );
 
     store.update(prev => ({
       ...prev,
@@ -207,6 +213,7 @@ export default function DailyPlanner() {
     }));
 
     setEditingId(null);
+    setEditingCategory('');
   }
 
   function moveTask(taskId, toDate) {
@@ -940,26 +947,48 @@ export default function DailyPlanner() {
 
                   {/* Название */}
                   {editingId === task.id ? (
-                    <input
-                      type="text"
-                      value={editingTitle}
-                      onChange={(e) => setEditingTitle(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') saveEdit();
-                        if (e.key === 'Escape') setEditingId(null);
-                      }}
-                      onBlur={saveEdit}
-                      autoFocus
-                      style={{
-                        flex: 1,
-                        padding: '4px 8px',
-                        fontSize: 16,
-                        border: '1px solid var(--cyan)',
-                        borderRadius: 6,
-                        background: 'var(--bg0)',
-                        color: 'var(--text)',
-                      }}
-                    />
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <input
+                        type="text"
+                        value={editingTitle}
+                        onChange={(e) => setEditingTitle(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') saveEdit();
+                          if (e.key === 'Escape') setEditingId(null);
+                        }}
+                        autoFocus
+                        style={{
+                          padding: '4px 8px',
+                          fontSize: 16,
+                          border: '1px solid var(--cyan)',
+                          borderRadius: 6,
+                          background: 'var(--bg0)',
+                          color: 'var(--text)',
+                        }}
+                      />
+                      {myCategories.length > 0 && (
+                        <select
+                          value={editingCategory}
+                          onChange={(e) => setEditingCategory(e.target.value)}
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: 14,
+                            border: '1px solid var(--border)',
+                            borderRadius: 6,
+                            background: 'var(--bg0)',
+                            color: 'var(--text)',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <option value="">Без категории</option>
+                          {myCategories.map(cat => (
+                            <option key={cat.id} value={cat.id}>
+                              {cat.icon} {cat.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
                   ) : (
                     <div
                       onClick={() => !blocked && startEdit(task)}
@@ -982,7 +1011,38 @@ export default function DailyPlanner() {
 
                   {/* Кнопки действий */}
                   <div style={{ display: 'flex', gap: 4 }}>
-                    {blocked ? (
+                    {editingId === task.id ? (
+                      <>
+                        <button
+                          onClick={saveEdit}
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: 12,
+                            border: 'none',
+                            borderRadius: 6,
+                            background: 'var(--cyan)',
+                            color: 'white',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          ✓
+                        </button>
+                        <button
+                          onClick={() => setEditingId(null)}
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: 12,
+                            border: 'none',
+                            borderRadius: 6,
+                            background: 'var(--red)',
+                            color: 'white',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </>
+                    ) : blocked ? (
                       <button
                         onClick={() => unblockTask(task.id)}
                         style={{
