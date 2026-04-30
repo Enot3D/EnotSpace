@@ -1,9 +1,11 @@
 import React, { useState, useContext, useEffect } from 'react';
-import { StoreContext } from '../App';
+import { StoreContext, AuthContext } from '../App';
 import { v4 as uuid } from 'uuid';
+import { getAllUsers } from '../firebase/firestore';
 
 export default function DailyPlanner() {
   const store = useContext(StoreContext);
+  const auth = useContext(AuthContext);
   const [selectedDate, setSelectedDate] = useState(getTodayString());
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [editingId, setEditingId] = useState(null);
@@ -11,21 +13,46 @@ export default function DailyPlanner() {
   const [showDatePicker, setShowDatePicker] = useState(null);
   const [moveToDate, setMoveToDate] = useState('');
   const [blockUntilDate, setBlockUntilDate] = useState('');
+  const [showManagement, setShowManagement] = useState(false);
+  const [managementUserId, setManagementUserId] = useState('');
+  const [users, setUsers] = useState([]);
+  const [delegateTaskId, setDelegateTaskId] = useState(null);
+  const [delegateToUserId, setDelegateToUserId] = useState('');
+
+  const currentUserId = auth?.user?.uid || 'dev';
+  const isAdmin = auth?.userData?.role === 'admin';
+
+  // Загрузка пользователей для админа
+  useEffect(() => {
+    if (isAdmin) {
+      loadUsers();
+    }
+  }, [isAdmin]);
+
+  const loadUsers = async () => {
+    const result = await getAllUsers();
+    if (result.success) {
+      setUsers(result.users.filter(u => u.active !== false));
+    }
+  };
 
   const dailyTasks = store.data.dailyTasks || {};
-  const todayTasks = dailyTasks[selectedDate] || [];
 
-  // Автоматический перенос невыполненных задач
+  // Определяем, чьи задачи показываем
+  const viewingUserId = showManagement && managementUserId ? managementUserId : currentUserId;
+  const todayTasks = (dailyTasks[selectedDate]?.[viewingUserId]) || [];
+
+  // Автоматический перенос невыполненных задач текущего пользователя
   useEffect(() => {
     const today = getTodayString();
     const yesterday = getYesterdayString();
 
-    if (!dailyTasks[yesterday]) return;
+    if (!dailyTasks[yesterday]?.[currentUserId]) return;
 
-    const unfinishedYesterday = dailyTasks[yesterday].filter(t => !t.done);
+    const unfinishedYesterday = dailyTasks[yesterday][currentUserId].filter(t => !t.done);
 
     if (unfinishedYesterday.length > 0) {
-      const todayTaskIds = new Set((dailyTasks[today] || []).map(t => t.id));
+      const todayTaskIds = new Set((dailyTasks[today]?.[currentUserId] || []).map(t => t.id));
       const tasksToMove = unfinishedYesterday.filter(t => !todayTaskIds.has(t.id));
 
       if (tasksToMove.length > 0) {
@@ -33,7 +60,10 @@ export default function DailyPlanner() {
           ...prev,
           dailyTasks: {
             ...prev.dailyTasks,
-            [today]: [...(prev.dailyTasks[today] || []), ...tasksToMove],
+            [today]: {
+              ...(prev.dailyTasks[today] || {}),
+              [currentUserId]: [...(prev.dailyTasks[today]?.[currentUserId] || []), ...tasksToMove],
+            },
           },
         }));
       }
@@ -53,10 +83,6 @@ export default function DailyPlanner() {
 
   function formatDate(dateStr) {
     const d = new Date(dateStr + 'T00:00:00');
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-
     const isToday = dateStr === getTodayString();
     const isYesterday = dateStr === getYesterdayString();
 
@@ -79,11 +105,16 @@ export default function DailyPlanner() {
       blockedUntil: null,
     };
 
+    const targetUserId = showManagement && managementUserId ? managementUserId : currentUserId;
+
     store.update(prev => ({
       ...prev,
       dailyTasks: {
         ...prev.dailyTasks,
-        [selectedDate]: [...(prev.dailyTasks[selectedDate] || []), task],
+        [selectedDate]: {
+          ...(prev.dailyTasks[selectedDate] || {}),
+          [targetUserId]: [...(prev.dailyTasks[selectedDate]?.[targetUserId] || []), task],
+        },
       },
     }));
 
@@ -91,27 +122,33 @@ export default function DailyPlanner() {
   }
 
   function toggleTask(taskId) {
-    const tasks = dailyTasks[selectedDate] || [];
+    const tasks = todayTasks;
     const updated = tasks.map(t => t.id === taskId ? { ...t, done: !t.done } : t);
 
     store.update(prev => ({
       ...prev,
       dailyTasks: {
         ...prev.dailyTasks,
-        [selectedDate]: updated,
+        [selectedDate]: {
+          ...(prev.dailyTasks[selectedDate] || {}),
+          [viewingUserId]: updated,
+        },
       },
     }));
   }
 
   function deleteTask(taskId) {
-    const tasks = dailyTasks[selectedDate] || [];
+    const tasks = todayTasks;
     const updated = tasks.filter(t => t.id !== taskId);
 
     store.update(prev => ({
       ...prev,
       dailyTasks: {
         ...prev.dailyTasks,
-        [selectedDate]: updated,
+        [selectedDate]: {
+          ...(prev.dailyTasks[selectedDate] || {}),
+          [viewingUserId]: updated,
+        },
       },
     }));
   }
@@ -127,14 +164,17 @@ export default function DailyPlanner() {
       return;
     }
 
-    const tasks = dailyTasks[selectedDate] || [];
+    const tasks = todayTasks;
     const updated = tasks.map(t => t.id === editingId ? { ...t, title: editingTitle.trim() } : t);
 
     store.update(prev => ({
       ...prev,
       dailyTasks: {
         ...prev.dailyTasks,
-        [selectedDate]: updated,
+        [selectedDate]: {
+          ...(prev.dailyTasks[selectedDate] || {}),
+          [viewingUserId]: updated,
+        },
       },
     }));
 
@@ -142,19 +182,25 @@ export default function DailyPlanner() {
   }
 
   function moveTask(taskId, toDate) {
-    const tasks = dailyTasks[selectedDate] || [];
+    const tasks = todayTasks;
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
 
     const updatedCurrent = tasks.filter(t => t.id !== taskId);
-    const targetTasks = dailyTasks[toDate] || [];
+    const targetTasks = dailyTasks[toDate]?.[viewingUserId] || [];
 
     store.update(prev => ({
       ...prev,
       dailyTasks: {
         ...prev.dailyTasks,
-        [selectedDate]: updatedCurrent,
-        [toDate]: [...targetTasks, task],
+        [selectedDate]: {
+          ...(prev.dailyTasks[selectedDate] || {}),
+          [viewingUserId]: updatedCurrent,
+        },
+        [toDate]: {
+          ...(prev.dailyTasks[toDate] || {}),
+          [viewingUserId]: [...targetTasks, task],
+        },
       },
     }));
 
@@ -163,14 +209,17 @@ export default function DailyPlanner() {
   }
 
   function blockTask(taskId, untilDate) {
-    const tasks = dailyTasks[selectedDate] || [];
+    const tasks = todayTasks;
     const updated = tasks.map(t => t.id === taskId ? { ...t, blockedUntil: untilDate } : t);
 
     store.update(prev => ({
       ...prev,
       dailyTasks: {
         ...prev.dailyTasks,
-        [selectedDate]: updated,
+        [selectedDate]: {
+          ...(prev.dailyTasks[selectedDate] || {}),
+          [viewingUserId]: updated,
+        },
       },
     }));
 
@@ -184,16 +233,43 @@ export default function DailyPlanner() {
   }
 
   function unblockTask(taskId) {
-    const tasks = dailyTasks[selectedDate] || [];
+    const tasks = todayTasks;
     const updated = tasks.map(t => t.id === taskId ? { ...t, blockedUntil: null } : t);
 
     store.update(prev => ({
       ...prev,
       dailyTasks: {
         ...prev.dailyTasks,
-        [selectedDate]: updated,
+        [selectedDate]: {
+          ...(prev.dailyTasks[selectedDate] || {}),
+          [viewingUserId]: updated,
+        },
       },
     }));
+  }
+
+  function delegateTask(taskId, toUserId) {
+    const tasks = todayTasks;
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    const updatedCurrent = tasks.filter(t => t.id !== taskId);
+    const targetTasks = dailyTasks[selectedDate]?.[toUserId] || [];
+
+    store.update(prev => ({
+      ...prev,
+      dailyTasks: {
+        ...prev.dailyTasks,
+        [selectedDate]: {
+          ...(prev.dailyTasks[selectedDate] || {}),
+          [currentUserId]: updatedCurrent,
+          [toUserId]: [...targetTasks, { ...task, done: false }],
+        },
+      },
+    }));
+
+    setDelegateTaskId(null);
+    setDelegateToUserId('');
   }
 
   // Прогресс дня
@@ -210,14 +286,90 @@ export default function DailyPlanner() {
     availableDates.push(dateStr);
   }
 
+  // Подсчет задач для каждой даты
+  function getTaskCountForDate(dateStr) {
+    const userTasks = dailyTasks[dateStr]?.[viewingUserId] || [];
+    return userTasks.length;
+  }
+
   return (
     <div style={{ padding: '16px 16px 80px' }}>
       {/* Заголовок */}
-      <div style={{ marginBottom: 24 }}>
+      <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1 style={{ fontSize: 28, fontWeight: 600, margin: 0, color: 'var(--text)' }}>
           📅 Планировка дня
         </h1>
+        {isAdmin && !showManagement && (
+          <button
+            onClick={() => setShowManagement(true)}
+            style={{
+              padding: '8px 16px',
+              fontSize: 16,
+              border: 'none',
+              borderRadius: 12,
+              background: 'var(--purple)',
+              color: 'white',
+              cursor: 'pointer',
+              fontWeight: 600,
+            }}
+          >
+            👥
+          </button>
+        )}
       </div>
+
+      {/* Режим управления (только для админа) */}
+      {showManagement && isAdmin && (
+        <div style={{
+          background: 'var(--bg1)',
+          border: '2px solid var(--purple)',
+          borderRadius: 12,
+          padding: 16,
+          marginBottom: 16,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <h3 style={{ margin: 0, fontSize: 18, color: 'var(--purple)' }}>👥 Управление задачами</h3>
+            <button
+              onClick={() => {
+                setShowManagement(false);
+                setManagementUserId('');
+              }}
+              style={{
+                padding: '4px 12px',
+                fontSize: 14,
+                border: 'none',
+                borderRadius: 8,
+                background: 'var(--red)',
+                color: 'white',
+                cursor: 'pointer',
+              }}
+            >
+              ✕
+            </button>
+          </div>
+          <select
+            value={managementUserId}
+            onChange={(e) => setManagementUserId(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '12px 16px',
+              fontSize: 16,
+              border: '1px solid var(--border)',
+              borderRadius: 12,
+              background: 'var(--bg0)',
+              color: 'var(--text)',
+              cursor: 'pointer',
+            }}
+          >
+            <option value="">Выберите сотрудника</option>
+            {users.map(user => (
+              <option key={user.id} value={user.id}>
+                {user.displayName || user.email}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Выбор даты */}
       <div style={{ marginBottom: 16 }}>
@@ -235,11 +387,14 @@ export default function DailyPlanner() {
             cursor: 'pointer',
           }}
         >
-          {availableDates.map(date => (
-            <option key={date} value={date}>
-              {formatDate(date)} {dailyTasks[date] ? `(${dailyTasks[date].length})` : ''}
-            </option>
-          ))}
+          {availableDates.map(date => {
+            const count = getTaskCountForDate(date);
+            return (
+              <option key={date} value={date}>
+                {formatDate(date)} {count > 0 ? `(${count})` : ''}
+              </option>
+            );
+          })}
         </select>
       </div>
 
@@ -327,6 +482,7 @@ export default function DailyPlanner() {
         ) : (
           todayTasks.map(task => {
             const blocked = isTaskBlocked(task);
+            const canDelegate = isAdmin && !showManagement && viewingUserId === currentUserId;
 
             return (
               <div
@@ -423,6 +579,22 @@ export default function DailyPlanner() {
                       </button>
                     ) : (
                       <>
+                        {canDelegate && (
+                          <button
+                            onClick={() => setDelegateTaskId(delegateTaskId === task.id ? null : task.id)}
+                            style={{
+                              padding: '4px 8px',
+                              fontSize: 12,
+                              border: 'none',
+                              borderRadius: 6,
+                              background: 'var(--green)',
+                              color: 'white',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            ➡️
+                          </button>
+                        )}
                         <button
                           onClick={() => setShowDatePicker(showDatePicker === `move-${task.id}` ? null : `move-${task.id}`)}
                           style={{
@@ -469,6 +641,52 @@ export default function DailyPlanner() {
                     </button>
                   </div>
                 </div>
+
+                {/* Модалка делегирования */}
+                {delegateTaskId === task.id && (
+                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                    <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 8 }}>
+                      Делегировать сотруднику:
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <select
+                        value={delegateToUserId}
+                        onChange={(e) => setDelegateToUserId(e.target.value)}
+                        style={{
+                          flex: 1,
+                          padding: '8px',
+                          fontSize: 14,
+                          border: '1px solid var(--border)',
+                          borderRadius: 6,
+                          background: 'var(--bg0)',
+                          color: 'var(--text)',
+                        }}
+                      >
+                        <option value="">Выберите сотрудника</option>
+                        {users.filter(u => u.id !== currentUserId).map(user => (
+                          <option key={user.id} value={user.id}>
+                            {user.displayName || user.email}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => delegateToUserId && delegateTask(task.id, delegateToUserId)}
+                        disabled={!delegateToUserId}
+                        style={{
+                          padding: '8px 16px',
+                          fontSize: 14,
+                          border: 'none',
+                          borderRadius: 6,
+                          background: delegateToUserId ? 'var(--green)' : 'var(--bg0)',
+                          color: 'white',
+                          cursor: delegateToUserId ? 'pointer' : 'not-allowed',
+                        }}
+                      >
+                        ✓
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Модалка переноса */}
                 {showDatePicker === `move-${task.id}` && (
