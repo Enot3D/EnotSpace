@@ -24,6 +24,9 @@ export default function DailyPlanner() {
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [editingCategoryId, setEditingCategoryId] = useState(null);
   const [editingCategoryName, setEditingCategoryName] = useState('');
+  const [editingCategoryIcon, setEditingCategoryIcon] = useState('');
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryIcon, setNewCategoryIcon] = useState('📁');
 
   const currentUserId = auth?.user?.uid || 'dev';
   const isAdmin = auth?.userData?.role === 'admin';
@@ -327,13 +330,16 @@ export default function DailyPlanner() {
         [viewingUserId]: [...(prev.userCategories[viewingUserId] || []), category],
       },
     }));
+
+    setNewCategoryName('');
+    setNewCategoryIcon('📁');
   }
 
-  function updateCategory(categoryId, newName) {
+  function updateCategory(categoryId, newName, newIcon) {
     if (!newName.trim()) return;
 
     const updated = myCategories.map(c =>
-      c.id === categoryId ? { ...c, name: newName.trim() } : c
+      c.id === categoryId ? { ...c, name: newName.trim(), icon: newIcon || '📁' } : c
     );
 
     store.update(prev => ({
@@ -346,6 +352,7 @@ export default function DailyPlanner() {
 
     setEditingCategoryId(null);
     setEditingCategoryName('');
+    setEditingCategoryIcon('');
   }
 
   function deleteCategory(categoryId) {
@@ -698,13 +705,31 @@ export default function DailyPlanner() {
               <div style={{ display: 'flex', gap: 8 }}>
                 <input
                   type="text"
-                  placeholder="Название..."
+                  value={newCategoryIcon}
+                  onChange={(e) => setNewCategoryIcon(e.target.value)}
+                  placeholder="📁"
+                  maxLength={2}
+                  style={{
+                    width: 50,
+                    padding: '10px 8px',
+                    fontSize: 20,
+                    textAlign: 'center',
+                    border: '1px solid var(--border)',
+                    borderRadius: 8,
+                    background: 'var(--bg0)',
+                    color: 'var(--text)',
+                  }}
+                />
+                <input
+                  type="text"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
-                      addCategory(e.target.value, '📁');
-                      e.target.value = '';
+                      addCategory(newCategoryName, newCategoryIcon);
                     }
                   }}
+                  placeholder="Название..."
                   style={{
                     flex: 1,
                     padding: '10px 12px',
@@ -716,11 +741,7 @@ export default function DailyPlanner() {
                   }}
                 />
                 <button
-                  onClick={(e) => {
-                    const input = e.target.previousSibling;
-                    addCategory(input.value, '📁');
-                    input.value = '';
-                  }}
+                  onClick={() => addCategory(newCategoryName, newCategoryIcon)}
                   style={{
                     padding: '10px 20px',
                     fontSize: 14,
@@ -757,44 +778,77 @@ export default function DailyPlanner() {
                       gap: 12,
                     }}
                   >
-                    <span style={{ fontSize: 20 }}>{category.icon}</span>
-
                     {editingCategoryId === category.id ? (
-                      <input
-                        type="text"
-                        value={editingCategoryName}
-                        onChange={(e) => setEditingCategoryName(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') updateCategory(category.id, editingCategoryName);
-                          if (e.key === 'Escape') setEditingCategoryId(null);
-                        }}
-                        onBlur={() => updateCategory(category.id, editingCategoryName)}
-                        autoFocus
-                        style={{
-                          flex: 1,
-                          padding: '6px 10px',
-                          fontSize: 14,
-                          border: '1px solid var(--cyan)',
-                          borderRadius: 6,
-                          background: 'var(--bg1)',
-                          color: 'var(--text)',
-                        }}
-                      />
+                      <>
+                        <input
+                          type="text"
+                          value={editingCategoryIcon}
+                          onChange={(e) => setEditingCategoryIcon(e.target.value)}
+                          maxLength={2}
+                          style={{
+                            width: 40,
+                            padding: '6px',
+                            fontSize: 18,
+                            textAlign: 'center',
+                            border: '1px solid var(--cyan)',
+                            borderRadius: 6,
+                            background: 'var(--bg1)',
+                            color: 'var(--text)',
+                          }}
+                        />
+                        <input
+                          type="text"
+                          value={editingCategoryName}
+                          onChange={(e) => setEditingCategoryName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') updateCategory(category.id, editingCategoryName, editingCategoryIcon);
+                            if (e.key === 'Escape') setEditingCategoryId(null);
+                          }}
+                          autoFocus
+                          style={{
+                            flex: 1,
+                            padding: '6px 10px',
+                            fontSize: 14,
+                            border: '1px solid var(--cyan)',
+                            borderRadius: 6,
+                            background: 'var(--bg1)',
+                            color: 'var(--text)',
+                          }}
+                        />
+                        <button
+                          onClick={() => updateCategory(category.id, editingCategoryName, editingCategoryIcon)}
+                          style={{
+                            padding: '6px 12px',
+                            fontSize: 12,
+                            border: 'none',
+                            borderRadius: 6,
+                            background: 'var(--cyan)',
+                            color: 'white',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          ✓
+                        </button>
+                      </>
                     ) : (
-                      <div
-                        onClick={() => {
-                          setEditingCategoryId(category.id);
-                          setEditingCategoryName(category.name);
-                        }}
-                        style={{
-                          flex: 1,
-                          fontSize: 16,
-                          color: 'var(--text)',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {category.name}
-                      </div>
+                      <>
+                        <span style={{ fontSize: 20 }}>{category.icon}</span>
+                        <div
+                          onClick={() => {
+                            setEditingCategoryId(category.id);
+                            setEditingCategoryName(category.name);
+                            setEditingCategoryIcon(category.icon);
+                          }}
+                          style={{
+                            flex: 1,
+                            fontSize: 16,
+                            color: 'var(--text)',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {category.name}
+                        </div>
+                      </>
                     )}
 
                     <button
