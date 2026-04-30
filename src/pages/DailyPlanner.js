@@ -81,6 +81,18 @@ export default function DailyPlanner() {
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   }
 
+  function getTomorrowString() {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
+  function getDateOffset(days) {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+
   function formatDate(dateStr) {
     const d = new Date(dateStr + 'T00:00:00');
     const isToday = dateStr === getTodayString();
@@ -373,6 +385,59 @@ export default function DailyPlanner() {
 
       {/* Выбор даты */}
       <div style={{ marginBottom: 16 }}>
+        {/* Быстрые кнопки */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+          <button
+            onClick={() => setSelectedDate(getDateOffset(-1))}
+            style={{
+              flex: 1,
+              padding: '10px',
+              fontSize: 14,
+              border: selectedDate === getDateOffset(-1) ? '2px solid var(--cyan)' : '1px solid var(--border)',
+              borderRadius: 10,
+              background: selectedDate === getDateOffset(-1) ? 'var(--cyan)' : 'var(--bg1)',
+              color: selectedDate === getDateOffset(-1) ? 'white' : 'var(--text)',
+              cursor: 'pointer',
+              fontWeight: selectedDate === getDateOffset(-1) ? 600 : 400,
+            }}
+          >
+            ← Вчера
+          </button>
+          <button
+            onClick={() => setSelectedDate(getTodayString())}
+            style={{
+              flex: 1,
+              padding: '10px',
+              fontSize: 14,
+              border: selectedDate === getTodayString() ? '2px solid var(--cyan)' : '1px solid var(--border)',
+              borderRadius: 10,
+              background: selectedDate === getTodayString() ? 'var(--cyan)' : 'var(--bg1)',
+              color: selectedDate === getTodayString() ? 'white' : 'var(--text)',
+              cursor: 'pointer',
+              fontWeight: selectedDate === getTodayString() ? 600 : 400,
+            }}
+          >
+            Сегодня
+          </button>
+          <button
+            onClick={() => setSelectedDate(getDateOffset(1))}
+            style={{
+              flex: 1,
+              padding: '10px',
+              fontSize: 14,
+              border: selectedDate === getDateOffset(1) ? '2px solid var(--cyan)' : '1px solid var(--border)',
+              borderRadius: 10,
+              background: selectedDate === getDateOffset(1) ? 'var(--cyan)' : 'var(--bg1)',
+              color: selectedDate === getDateOffset(1) ? 'white' : 'var(--text)',
+              cursor: 'pointer',
+              fontWeight: selectedDate === getDateOffset(1) ? 600 : 400,
+            }}
+          >
+            Завтра →
+          </button>
+        </div>
+
+        {/* Выпадающий список для других дат */}
         <select
           value={selectedDate}
           onChange={(e) => setSelectedDate(e.target.value)}
