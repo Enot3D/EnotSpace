@@ -1,13 +1,13 @@
 {
   "files": {
     "main.css": "/EnotSpace/static/css/main.c0661091.css",
-    "main.js": "/EnotSpace/static/js/main.466df11e.js",
+    "main.js": "/EnotSpace/static/js/main.2f2c9e49.js",
     "index.html": "/EnotSpace/index.html",
     "main.c0661091.css.map": "/EnotSpace/static/css/main.c0661091.css.map",
-    "main.466df11e.js.map": "/EnotSpace/static/js/main.466df11e.js.map"
+    "main.2f2c9e49.js.map": "/EnotSpace/static/js/main.2f2c9e49.js.map"
   },
   "entrypoints": [
     "static/css/main.c0661091.css",
-    "static/js/main.466df11e.js"
+    "static/js/main.2f2c9e49.js"
   ]
 }
