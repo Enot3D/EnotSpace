@@ -67,17 +67,29 @@ export default function DailyPlanner() {
 
     if (!dailyTasks[yesterday]?.[currentUserId]) return;
 
-    const unfinishedYesterday = dailyTasks[yesterday][currentUserId].filter(t => !t.done);
+    const unfinishedYesterday = dailyTasks[yesterday][currentUserId].filter(t => !t.done && !t.movedToDate);
 
     if (unfinishedYesterday.length > 0) {
       const todayTaskIds = new Set((dailyTasks[today]?.[currentUserId] || []).map(t => t.id));
       const tasksToMove = unfinishedYesterday.filter(t => !todayTaskIds.has(t.id));
 
       if (tasksToMove.length > 0) {
+        // Помечаем задачи в прошлом дне как перенесенные
+        const updatedYesterdayTasks = dailyTasks[yesterday][currentUserId].map(t => {
+          if (tasksToMove.find(tm => tm.id === t.id)) {
+            return { ...t, movedToDate: today };
+          }
+          return t;
+        });
+
         store.update(prev => ({
           ...prev,
           dailyTasks: {
             ...prev.dailyTasks,
+            [yesterday]: {
+              ...(prev.dailyTasks[yesterday] || {}),
+              [currentUserId]: updatedYesterdayTasks,
+            },
             [today]: {
               ...(prev.dailyTasks[today] || {}),
               [currentUserId]: [...(prev.dailyTasks[today]?.[currentUserId] || []), ...tasksToMove],
@@ -220,11 +232,13 @@ export default function DailyPlanner() {
   }
 
   function moveTask(taskId, toDate) {
-    const tasks = todayTasks;
+    const tasks = allTodayTasks;
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
 
-    const updatedCurrent = tasks.filter(t => t.id !== taskId);
+    const updatedCurrent = tasks.map(t =>
+      t.id === taskId ? { ...t, movedToDate: toDate } : t
+    );
     const targetTasks = dailyTasks[toDate]?.[viewingUserId] || [];
 
     store.update(prev => ({
@@ -237,7 +251,7 @@ export default function DailyPlanner() {
         },
         [toDate]: {
           ...(prev.dailyTasks[toDate] || {}),
-          [viewingUserId]: [...targetTasks, task],
+          [viewingUserId]: [...targetTasks, { ...task, movedToDate: null }],
         },
       },
     }));
@@ -957,16 +971,17 @@ export default function DailyPlanner() {
             const blocked = isTaskBlocked(task);
             const canDelegate = isAdmin && !showManagement && viewingUserId === currentUserId;
             const taskCategory = task.category ? getCategoryById(task.category) : null;
+            const isMoved = task.movedToDate && !task.done;
 
             return (
               <div
                 key={task.id}
                 style={{
-                  background: 'var(--bg1)',
-                  border: '1px solid var(--border)',
+                  background: isMoved ? 'var(--bg0)' : 'var(--bg1)',
+                  border: isMoved ? '1px dashed var(--orange)' : '1px solid var(--border)',
                   borderRadius: 12,
                   padding: 12,
-                  opacity: blocked ? 0.5 : 1,
+                  opacity: blocked ? 0.5 : isMoved ? 0.6 : 1,
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -1045,19 +1060,24 @@ export default function DailyPlanner() {
                     </div>
                   ) : (
                     <div
-                      onClick={() => !blocked && startEdit(task)}
+                      onClick={() => !blocked && !isMoved && startEdit(task)}
                       style={{
                         flex: 1,
                         fontSize: 16,
-                        color: task.done ? 'var(--text-dim)' : 'var(--text)',
+                        color: task.done ? 'var(--text-dim)' : isMoved ? 'var(--orange)' : 'var(--text)',
                         textDecoration: task.done ? 'line-through' : 'none',
-                        cursor: blocked ? 'not-allowed' : 'pointer',
+                        cursor: blocked || isMoved ? 'not-allowed' : 'pointer',
                       }}
                     >
                       {task.title}
                       {blocked && (
                         <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--orange)' }}>
                           🔒 до {new Date(task.blockedUntil).toLocaleDateString('ru-RU')}
+                        </span>
+                      )}
+                      {isMoved && (
+                        <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--orange)' }}>
+                          ➡️ перенесено на {new Date(task.movedToDate + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
                         </span>
                       )}
                     </div>
