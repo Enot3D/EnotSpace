@@ -52,10 +52,13 @@ export default function DailyPlanner() {
   const viewingUserId = showManagement && managementUserId ? managementUserId : currentUserId;
   const allTodayTasks = (dailyTasks[selectedDate]?.[viewingUserId]) || [];
 
+  // Фильтрация: показываем только задачи, которые не перенесены ИЛИ перенесены, но это не сегодняшний день
+  const allActiveTasks = allTodayTasks.filter(t => !t.movedToDate || selectedDate !== getTodayString());
+
   // Фильтрация по категории
   const todayTasks = selectedCategory === 'all'
-    ? allTodayTasks
-    : allTodayTasks.filter(t => t.category === selectedCategory);
+    ? allActiveTasks
+    : allActiveTasks.filter(t => t.category === selectedCategory);
 
   // Категории текущего пользователя
   const myCategories = userCategories[viewingUserId] || [];
@@ -166,8 +169,8 @@ export default function DailyPlanner() {
   }
 
   function toggleTask(taskId) {
-    const tasks = todayTasks;
-    const updated = tasks.map(t => t.id === taskId ? { ...t, done: !t.done } : t);
+    const tasks = allActiveTasks;
+    const updated = allTodayTasks.map(t => t.id === taskId ? { ...t, done: !t.done } : t);
 
     store.update(prev => ({
       ...prev,
@@ -182,8 +185,7 @@ export default function DailyPlanner() {
   }
 
   function deleteTask(taskId) {
-    const tasks = todayTasks;
-    const updated = tasks.filter(t => t.id !== taskId);
+    const updated = allTodayTasks.filter(t => t.id !== taskId);
 
     store.update(prev => ({
       ...prev,
@@ -384,15 +386,15 @@ export default function DailyPlanner() {
   }
 
   function getCategoryStats(categoryId) {
-    const categoryTasks = allTodayTasks.filter(t => t.category === categoryId);
+    const categoryTasks = allActiveTasks.filter(t => t.category === categoryId);
     const total = categoryTasks.length;
     const done = categoryTasks.filter(t => t.done).length;
     return { total, done, allDone: total > 0 && done === total };
   }
 
-  // Прогресс дня (по всем задачам, не только отфильтрованным)
-  const totalTasks = allTodayTasks.length;
-  const doneTasks = allTodayTasks.filter(t => t.done).length;
+  // Прогресс дня (по всем активным задачам, не только отфильтрованным)
+  const totalTasks = allActiveTasks.length;
+  const doneTasks = allActiveTasks.filter(t => t.done).length;
   const progress = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
 
   // Список доступных дат (последние 30 дней)
